@@ -1,0 +1,984 @@
+{{/* ── Full page layout ──────────────────────────────────────────────────── */}}
+{{ define "layout" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <style>
+    :root {
+      --bg:           #ecf0f7;
+      --card:         #ffffff;
+      --border:       #d4dbe9;
+      --text:         #0e1628;
+      --text-2:       #5e6f9a;
+      --accent:       #9a5000;
+      --accent-dark:  #7a3f00;
+      --accent-light: #fff4e0;
+      --on-accent:    #fff8f0;
+      --green:        #16a34a;
+      --green-light:  #edfcf2;
+      --red:          #dc2626;
+      --red-light:    #fef2f2;
+      --yellow:       #d97706;
+      --yellow-light: #fffbeb;
+      --purple:       #7c3aed;
+      --purple-light: #faf5ff;
+      --radius:       10px;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 40px 32px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header { margin-bottom: 18px; }
+    .greeting { font-size: 1.875rem; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
+    .greeting .name { color: var(--accent); }
+    .today-date {
+      font-size: 0.75rem; color: var(--text-2); margin-top: 5px;
+      font-family: var(--mono); letter-spacing: 0.05em;
+    }
+
+    /* ── Status bar ── */
+    .status-bar { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+    .status-item { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-2); font-family: var(--mono); }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .status-ok       .status-dot { background: var(--green); }
+    .status-minor    .status-dot { background: #f59e0b; }
+    .status-critical .status-dot { background: var(--red); box-shadow: 0 0 6px var(--red); animation: pulse 1.5s infinite; }
+    .status-unknown  .status-dot { background: var(--border); }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Layout ── */
+    .row-top {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+      align-items: stretch;
+    }
+    .row-top .widget {
+      display: flex;
+      flex-direction: column;
+    }
+    #cal-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    #tasks-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    #tasks-body .task-list { flex: 1; overflow-y: auto; }
+    #tasks-body .task-add { margin-top: auto; flex-shrink: 0; }
+    .widget {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid transparent;
+      border-radius: var(--radius);
+      padding: 20px 20px 20px 18px;
+      margin-bottom: 16px;
+      transition: border-left-color 0.2s, box-shadow 0.2s;
+      box-shadow: 0 1px 4px rgba(14,22,40,0.06);
+    }
+    .widget:hover { border-left-color: var(--accent); }
+    .widget:last-child { margin-bottom: 0; }
+
+    /* ── Widget header ── */
+    .widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .widget-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
+    .widget-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 4px; }
+    .tab {
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: var(--mono);
+      transition: all 0.1s;
+      white-space: nowrap;
+    }
+    .tab:hover { background: var(--bg); color: var(--text); }
+    .tab.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+    /* ── Sort toggle ── */
+    .sort-toggle { display: flex; gap: 2px; }
+    .sort-btn {
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      font-size: 0.68rem;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: var(--mono);
+      transition: all 0.1s;
+    }
+    .sort-btn:hover { background: var(--bg); }
+    .sort-btn.active { background: var(--bg); color: var(--text); font-weight: 600; }
+    .sort-label { font-size: 0.68rem; color: var(--text-2); align-self: center; font-family: var(--mono); }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      white-space: nowrap;
+      font-family: var(--mono);
+      letter-spacing: 0.02em;
+    }
+    .badge-green  { background: #d1fae5; color: #065f46; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-purple { background: #ede9fe; color: #5b21b6; }
+    .badge-blue   { background: #fef3c7; color: #92400e; }
+    .badge-gray   { background: #e8ecf5; color: #3d4f72; border: 1px solid var(--border); }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 28px 0;
+      color: var(--text-2);
+      font-size: 0.875rem;
+    }
+
+    /* ── Calendar: daily ── */
+    .event-list { display: flex; flex-direction: column; gap: 6px; }
+    .event-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--accent-light);
+      border-left: 3px solid var(--accent);
+    }
+    .event-time {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 38px;
+      padding-top: 1px;
+      flex-shrink: 0;
+      font-family: var(--mono);
+    }
+    .event-title { font-size: 0.875rem; font-weight: 500; }
+    .event-location { font-size: 0.7rem; color: var(--text-2); margin-top: 1px; font-family: var(--mono); }
+
+    /* ── Calendar: weekly ── */
+    .week-grid-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .week-col { min-height: 60px; }
+    .week-day-header {
+      text-align: center;
+      font-size: 0.62rem;
+      font-weight: 600;
+      padding: 4px 2px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      color: var(--text-2);
+      line-height: 1.4;
+      font-family: var(--mono);
+    }
+    .week-day-header.today { background: var(--accent); color: var(--on-accent); }
+    .week-event {
+      font-size: 0.64rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--accent-light);
+      color: var(--accent);
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-left: 2px solid var(--accent);
+    }
+
+    /* ── Calendar: monthly ── */
+    .month-dow-row { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+    .month-dow { text-align: center; font-size: 0.6rem; font-weight: 600; color: var(--text-2); padding: 2px 0; font-family: var(--mono); }
+    .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .month-cell { display: flex; flex-direction: column; align-items: center; padding: 3px 0; }
+    .month-num {
+      width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      font-size: 0.73rem;
+      font-family: var(--mono);
+    }
+    .month-cell.other-month .month-num { color: var(--border); }
+    .month-cell.today .month-num { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+    .event-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin-top: 2px; }
+    .month-cell.today .event-dot { background: var(--on-accent); }
+
+    /* ── Tasks ── */
+    .task-list { display: flex; flex-direction: column; }
+    .task-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 8px 7px 6px; border-radius: 8px;
+      border-left: 2px solid transparent;
+      transition: background 0.1s, border-left-color 0.15s;
+    }
+    .task-item:hover { background: var(--bg); border-left-color: var(--accent); }
+    .task-item.important { background: #fefce8; }
+    .task-item.important:hover { background: #fef9c3; }
+    html.dark .task-item.important { background: #2a1e08; }
+    html.dark .task-item.important:hover { background: #3d2f10; }
+    .complete-form { display: contents; }
+    .complete-btn {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      cursor: pointer; flex-shrink: 0; padding: 0;
+      transition: all 0.15s;
+    }
+    .complete-btn:hover { border-color: var(--green); background: var(--green-light); }
+    .complete-btn.checked { background: var(--green-light); border-color: var(--green); color: var(--green); font-size: 0.6rem; }
+    .task-delete-btn {
+      margin-left: auto; opacity: 0; background: none; border: none;
+      cursor: pointer; color: var(--text-2); font-size: 0.85rem; padding: 2px 4px;
+      border-radius: 4px; transition: opacity 0.15s, color 0.15s; flex-shrink: 0;
+    }
+    .task-item:hover .task-delete-btn { opacity: 1; }
+    .task-delete-btn:hover { color: var(--red); }
+    .task-item.done { opacity: 0.55; }
+    .task-item.done:hover { opacity: 0.7; }
+    .struck { text-decoration: line-through; color: var(--text-2); }
+    .priority-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .p0 { background: var(--border); }
+    .p1 { background: var(--text-2); }
+    .p2 { background: var(--yellow); }
+    .p3 { background: var(--red); }
+    .task-title { font-size: 0.875rem; flex: 1; }
+    .task-due { font-size: 0.68rem; color: var(--text-2); white-space: nowrap; font-family: var(--mono); }
+    .task-due.overdue { color: var(--red); font-weight: 600; }
+    .task-add {
+      display: flex; gap: 8px;
+      margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .task-add input {
+      flex: 1; padding: 6px 10px;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 0.875rem; font-family: inherit; outline: none;
+      background: var(--card); color: var(--text);
+      transition: border-color 0.1s;
+    }
+    .task-add input:focus { border-color: var(--accent); }
+    .task-add button {
+      padding: 6px 14px; background: var(--accent); color: var(--on-accent);
+      border: none; border-radius: 6px;
+      font-size: 0.875rem; font-family: inherit; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .task-add button:hover { background: var(--accent-dark); }
+    .task-important-btn {
+      padding: 6px 10px; background: transparent; color: var(--text-2);
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 0.875rem; font-family: inherit; cursor: pointer;
+      transition: all 0.1s;
+    }
+    .task-important-btn:hover, .task-important-btn.on {
+      background: #fef9c3; color: #854d0e; border-color: #fde68a;
+    }
+    html.dark .task-important-btn:hover, html.dark .task-important-btn.on {
+      background: #3d2f10; color: #fbbf24; border-color: #78350f;
+    }
+
+    /* ── GitHub list (PRs, Issues, Notifications) ── */
+    .gh-list { display: flex; flex-direction: column; }
+    .gh-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 8px 10px 6px; border-radius: 8px;
+      border-left: 2px solid transparent;
+      transition: background 0.1s, border-left-color 0.15s;
+    }
+    .gh-item:hover { background: var(--bg); border-left-color: var(--accent); }
+    .gh-item-body { flex: 1; min-width: 0; }
+    .gh-title {
+      font-size: 0.875rem; font-weight: 500;
+      color: var(--text); text-decoration: none;
+      display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .gh-title:hover { color: var(--accent); text-decoration: underline; }
+    .gh-meta {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      font-size: 0.69rem; color: var(--text-2); margin-top: 4px;
+      font-family: var(--mono);
+    }
+    .gh-meta-sep::before { content: "·"; }
+    .gh-badges { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+    .gh-repo-label { font-size: 0.69rem; color: var(--text-2); font-family: var(--mono); }
+
+    /* ── Releases (compact) ── */
+    .widget-compact { padding: 10px 20px 10px 18px; }
+    .release-list { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+    .release-item { display: flex; align-items: baseline; gap: 5px; }
+    .release-name { font-size: 0.8rem; font-weight: 500; color: var(--text); text-decoration: none; white-space: nowrap; }
+    .release-name:hover { color: var(--accent); }
+    .release-tag { font-size: 0.69rem; color: var(--accent); font-family: var(--mono); white-space: nowrap; }
+    .release-date { font-size: 0.65rem; color: var(--text-2); white-space: nowrap; font-family: var(--mono); }
+
+    /* ── Filters row ── */
+    .filters {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .filter-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      font-size: 0.7rem; font-weight: 500;
+      cursor: pointer; font-family: var(--mono);
+      transition: all 0.1s;
+      white-space: nowrap;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .filter-btn .count { opacity: 0.75; }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-size: 0.7rem; color: var(--text-2);
+      font-family: var(--mono);
+    }
+    .page-btns { display: flex; gap: 4px; }
+    .page-btn {
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent; color: var(--text-2);
+      font-size: 0.7rem; font-family: var(--mono);
+      cursor: pointer; transition: all 0.1s;
+    }
+    .page-btn:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+    .page-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .page-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── Dismiss button ── */
+    .dismiss-btn {
+      width: 24px; height: 24px;
+      border-radius: 6px; border: none;
+      background: transparent; color: var(--text-2);
+      font-size: 1rem; line-height: 1;
+      cursor: pointer; flex-shrink: 0; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.1s;
+    }
+    .dismiss-btn:hover { background: var(--red-light); color: var(--red); }
+
+    /* ── Calendar nav ── */
+    .cal-nav {
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 6px; padding: 2px 8px;
+      cursor: pointer; font-size: 0.85rem; color: var(--text-2);
+      font-family: var(--mono); transition: all 0.1s;
+    }
+    .cal-nav:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Repo group header ── */
+    .repo-group { margin-top: 8px; }
+    .repo-group:first-child { margin-top: 0; }
+    .repo-group-label {
+      font-size: 0.65rem; font-weight: 700;
+      color: var(--text-2); font-family: var(--mono);
+      padding: 6px 8px 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Dark mode badge overrides ── */
+    html.dark .badge-green  { background: #022c22; color: #6ee7b7; }
+    html.dark .badge-red    { background: #3b0a0a; color: #fca5a5; }
+    html.dark .badge-yellow { background: #311e08; color: #fcd34d; }
+    html.dark .badge-purple { background: #1e0a3c; color: #c4b5fd; }
+    html.dark .badge-blue   { background: #311e08; color: #fcd34d; }
+    html.dark .badge-gray   { background: var(--bg); color: #7a96b8; border-color: var(--border); }
+
+    /* ── Dark mode ── */
+    html.dark {
+      --bg:           #070b15;
+      --card:         #0c1022;
+      --border:       #192038;
+      --text:         #c8d4f0;
+      --text-2:       #4a607a;
+      --accent:       #e89818;
+      --accent-dark:  #c07800;
+      --accent-light: #180e02;
+      --on-accent:    #0a0812;
+      --green-light:  #071a0f;
+      --red-light:    #1a0707;
+      --yellow-light: #1a1103;
+      --purple-light: #100c1e;
+    }
+    .dark-toggle {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-2); border-radius: 8px;
+      padding: 4px 10px; font-size: 0.75rem;
+      cursor: pointer; font-family: var(--mono);
+      letter-spacing: 0.04em;
+      transition: all 0.1s;
+    }
+    .dark-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── HTMX ── */
+    .htmx-request { opacity: 0.6; transition: opacity 0.2s; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      body { padding: 20px 16px; }
+      .greeting { font-size: 1.4rem; }
+      .row-top { grid-template-columns: 1fr; }
+      .row-top .widget { min-height: auto !important; }
+      .week-grid { min-width: 420px; }
+      .pagination { flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div>
+        <h1 class="greeting">Hello, <span class="name">{{ .Name }}</span></h1>
+        <p class="today-date">{{ formatDate .Today }}</p>
+      </div>
+      <button class="dark-toggle" onclick="toggleDark()" id="dark-btn">☽ Dark</button>
+    </header>
+    <script>
+      function applyDark(on) {
+        document.documentElement.classList.toggle('dark', on);
+        document.getElementById('dark-btn').textContent = on ? '☀ Light' : '☽ Dark';
+      }
+      function toggleDark() {
+        const on = !document.documentElement.classList.contains('dark');
+        localStorage.setItem('dark', on);
+        applyDark(on);
+      }
+      applyDark(localStorage.getItem('dark') === 'true');
+    </script>
+
+    {{ if .Statuses }}
+    <div class="status-bar">
+      {{ range .Statuses }}
+      <a href="{{ .URL }}" target="_blank" rel="noopener" class="status-item {{ statusClass .Status }}" title="{{ statusDesc .Metadata }}">
+        <span class="status-dot"></span>
+        <span>{{ .Title }}</span>
+      </a>
+      {{ end }}
+    </div>
+    {{ end }}
+
+    {{ if .CalEnabled }}
+    {{ $calH := 280 }}
+    {{ if eq .Cal.View "monthly" }}
+      {{ if eq (len .Cal.Days) 28 }}{{ $calH = 245 }}{{ end }}
+      {{ if eq (len .Cal.Days) 42 }}{{ $calH = 315 }}{{ end }}
+    {{ end }}
+    <div class="row-top">
+      <div class="widget" style="min-height:{{ $calH }}px">
+        <div id="cal-body">{{ template "calendar" .Cal }}</div>
+      </div>
+      <div class="widget" style="min-height:{{ $calH }}px">
+        <div id="tasks-body">{{ template "tasks" .Tasks }}</div>
+      </div>
+    </div>
+    {{ else }}
+    <div class="widget" style="margin-bottom:16px">
+      <div id="tasks-body">{{ template "tasks" .Tasks }}</div>
+    </div>
+    {{ end }}
+
+    {{ if .ReleasesEnabled }}
+    <div class="widget widget-compact">
+      <div id="releases-body"
+           hx-get="/htmx/releases"
+           hx-trigger="every 300s"
+           hx-swap="innerHTML">
+        {{ template "releases" .Releases }}
+      </div>
+    </div>
+    {{ end }}
+
+    <div class="widget">
+      <div id="notifs-body"
+           hx-get="/htmx/notifications"
+           hx-trigger="every 120s"
+           hx-swap="innerHTML">
+        {{ template "notifications" .Notifs }}
+      </div>
+    </div>
+
+    <div class="widget">
+      <div id="prs-body"
+           hx-get="/htmx/prs"
+           hx-trigger="every 300s"
+           hx-swap="innerHTML">
+        {{ template "prlist" .PRs }}
+      </div>
+    </div>
+
+    <div class="widget">
+      <div id="issues-body"
+           hx-get="/htmx/issues"
+           hx-trigger="every 300s"
+           hx-swap="innerHTML">
+        {{ template "issuelist" .Issues }}
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+{{ end }}
+
+{{/* ── Calendar ───────────────────────────────────────────────────────────── */}}
+{{ define "calendar" }}
+<div class="widget-header">
+  {{ if eq .View "monthly" }}
+  <button class="cal-nav"
+          hx-get="/htmx/calendar?view=monthly&month={{ .PrevMonth }}&year={{ .PrevYear }}"
+          hx-target="#cal-body" hx-swap="innerHTML">←</button>
+  <span class="widget-title">{{ .MonthName }} {{ .Year }}</span>
+  <button class="cal-nav"
+          hx-get="/htmx/calendar?view=monthly&month={{ .NextMonth }}&year={{ .NextYear }}"
+          hx-target="#cal-body" hx-swap="innerHTML">→</button>
+  {{ else }}
+  <span class="widget-title">Calendar</span>
+  {{ end }}
+  <div class="tabs">
+    <button class="tab {{ if eq .View "daily" }}active{{ end }}"
+            hx-get="/htmx/calendar?view=daily" hx-target="#cal-body" hx-swap="innerHTML">Day</button>
+    <button class="tab {{ if eq .View "weekly" }}active{{ end }}"
+            hx-get="/htmx/calendar?view=weekly" hx-target="#cal-body" hx-swap="innerHTML">Week</button>
+    <button class="tab {{ if eq .View "monthly" }}active{{ end }}"
+            hx-get="/htmx/calendar?view=monthly&month={{ .Month }}&year={{ .Year }}"
+            hx-target="#cal-body" hx-swap="innerHTML">Month</button>
+  </div>
+</div>
+
+{{ if eq .View "daily" }}
+  {{ with index .Days 0 }}
+    {{ if .Events }}
+    <div class="event-list">
+      {{ range .Events }}
+      {{ $color := calColor .Metadata }}
+      <div class="event-item" {{ if $color }}style="border-left-color:{{ $color }}"{{ end }}>
+        <span class="event-time">{{ formatTime .StartAt }}</span>
+        <div>
+          <div class="event-title">{{ .Title }}</div>
+          {{ with index .Metadata "location" }}<div class="event-location">{{ . }}</div>{{ end }}
+        </div>
+      </div>
+      {{ end }}
+    </div>
+    {{ else }}
+    <div class="empty">No events today</div>
+    {{ end }}
+  {{ end }}
+
+{{ else if eq .View "weekly" }}
+  <div class="week-grid-scroll">
+  <div class="week-grid">
+    {{ range .Days }}
+    <div class="week-col">
+      <div class="week-day-header {{ if .IsToday }}today{{ end }}">
+        <div>{{ dayAbbr .Date }}</div>
+        <div>{{ dayNum .Date }}</div>
+      </div>
+      {{ range .Events }}
+      {{ $color := calColor .Metadata }}
+      <div class="week-event" title="{{ .Title }}" {{ if $color }}style="border-left-color:{{ $color }};background:{{ $color }}18"{{ end }}>{{ .Title }}</div>
+      {{ end }}
+    </div>
+    {{ end }}
+  </div>
+  </div>
+
+{{ else }}
+  <div class="month-dow-row">
+    <div class="month-dow">Mo</div><div class="month-dow">Tu</div>
+    <div class="month-dow">We</div><div class="month-dow">Th</div>
+    <div class="month-dow">Fr</div><div class="month-dow">Sa</div>
+    <div class="month-dow">Su</div>
+  </div>
+  <div class="month-grid">
+    {{ range .Days }}
+    <div class="month-cell {{ if not .InMonth }}other-month{{ end }} {{ if .IsToday }}today{{ end }}">
+      <div class="month-num">{{ dayNum .Date }}</div>
+      {{ range .Events }}{{ $color := calColor .Metadata }}<div class="event-dot" {{ if $color }}style="background:{{ $color }}"{{ end }}></div>{{ end }}
+    </div>
+    {{ end }}
+  </div>
+{{ end }}
+{{ end }}
+
+{{/* ── Tasks ─────────────────────────────────────────────────────────────── */}}
+{{ define "tasks" }}
+<div class="widget-header">
+  <span class="widget-title">Tasks for Today</span>
+  {{ if . }}<span class="badge badge-blue">{{ len . }}</span>{{ end }}
+</div>
+{{ if . }}
+<div class="task-list">
+  {{ range . }}
+  {{ $important := index .Metadata "important" }}
+  {{ $done := or (eq .Status "done") (eq .Status "completed") }}
+  <div class="task-item {{ if $important }}important{{ end }} {{ if $done }}done{{ end }}">
+    <form class="complete-form"
+          hx-post="/htmx/tasks/{{ .ID }}/complete"
+          hx-target="#tasks-body"
+          hx-swap="innerHTML">
+      <button type="submit" class="complete-btn {{ if $done }}checked{{ end }}" title="{{ if $done }}Completed{{ else }}Mark complete{{ end }}">{{ if $done }}✓{{ end }}</button>
+    </form>
+    <div class="priority-dot p{{ .Priority }}"></div>
+    <span class="task-title {{ if $done }}struck{{ end }}">{{ .Title }}</span>
+    {{ if .DueAt }}
+    <span class="task-due {{ if isOverdue .DueAt }}overdue{{ end }}">{{ formatDue .DueAt }}</span>
+    {{ end }}
+    {{ if not $done }}
+    <form class="complete-form"
+          hx-post="/htmx/tasks/{{ .ID }}/important"
+          hx-target="#tasks-body"
+          hx-swap="innerHTML">
+      <button type="submit" class="task-important-btn {{ if $important }}on{{ end }}" title="Mark important">★</button>
+    </form>
+    {{ end }}
+    <form class="complete-form"
+          hx-post="/htmx/tasks/{{ .ID }}/delete"
+          hx-target="#tasks-body"
+          hx-swap="innerHTML">
+      <button type="submit" class="task-delete-btn" title="Delete task">🗑</button>
+    </form>
+  </div>
+  {{ end }}
+</div>
+{{ else }}
+<div class="empty">No tasks for today</div>
+{{ end }}
+<form class="task-add"
+      hx-post="/htmx/tasks"
+      hx-target="#tasks-body"
+      hx-swap="innerHTML">
+  <input type="text" name="title" placeholder="Add a task…" autocomplete="off">
+  <input type="hidden" name="important" value="0" id="task-imp-flag">
+  <button type="button"
+          class="task-important-btn"
+          title="Mark as important"
+          onclick="var f=document.getElementById('task-imp-flag'); var on=f.value==='1'; f.value=on?'0':'1'; this.classList.toggle('on',!on);">★</button>
+  <button type="submit">Add</button>
+</form>
+{{ end }}
+
+{{/* ── Shared: filter + sort bar ────────────────────────────────────────── */}}
+{{ define "filterbar" }}
+<div class="widget-header">
+  <div class="widget-controls">
+    <div class="filters">
+      {{ range .Filters }}
+      <button class="filter-btn {{ if .Active }}active{{ end }}"
+              hx-get="{{ pageURL $.Endpoint .Value $.ActiveSort 1 $.PerPage }}"
+              hx-target="#{{ $.TargetID }}"
+              hx-swap="innerHTML">
+        {{ .Label }} <span class="count">({{ .Count }})</span>
+      </button>
+      {{ end }}
+    </div>
+  </div>
+  <div class="widget-controls">
+    <span class="sort-label">Sort:</span>
+    <div class="sort-toggle">
+      <button class="sort-btn {{ if eq .ActiveSort "activity" }}active{{ end }}"
+              hx-get="{{ pageURL .Endpoint .ActiveFilter "activity" .Page .PerPage }}"
+              hx-target="#{{ .TargetID }}"
+              hx-swap="innerHTML">Activity</button>
+      <button class="sort-btn {{ if eq .ActiveSort "age" }}active{{ end }}"
+              hx-get="{{ pageURL .Endpoint .ActiveFilter "age" .Page .PerPage }}"
+              hx-target="#{{ .TargetID }}"
+              hx-swap="innerHTML">Age</button>
+      <button class="sort-btn {{ if eq .ActiveSort "repo" }}active{{ end }}"
+              hx-get="{{ pageURL .Endpoint .ActiveFilter "repo" .Page .PerPage }}"
+              hx-target="#{{ .TargetID }}"
+              hx-swap="innerHTML">Repo</button>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{/* ── Shared: pagination footer ────────────────────────────────────────── */}}
+{{ define "pagination" }}
+{{ if gt .Total 0 }}
+<div class="pagination" style="margin-top:12px">
+  {{ if gt .TotalPages 1 }}
+  <span>{{ .Total }} total · page {{ .Page }} of {{ .TotalPages }}</span>
+  <div class="page-btns">
+    <button class="page-btn"
+            {{ if eq .Page 1 }}disabled{{ end }}
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort (sub .Page 1) .PerPage }}"
+            hx-target="#{{ .TargetID }}"
+            hx-swap="innerHTML">← Prev</button>
+    {{ range seq .TotalPages }}
+    <button class="page-btn {{ if eq . $.Page }}active{{ end }}"
+            hx-get="{{ pageURL $.Endpoint $.ActiveFilter $.ActiveSort . $.PerPage }}"
+            hx-target="#{{ $.TargetID }}"
+            hx-swap="innerHTML">{{ . }}</button>
+    {{ end }}
+    <button class="page-btn"
+            {{ if eq .Page .TotalPages }}disabled{{ end }}
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort (add .Page 1) .PerPage }}"
+            hx-target="#{{ .TargetID }}"
+            hx-swap="innerHTML">Next →</button>
+  </div>
+  {{ end }}
+  <div class="page-btns">
+    <span class="sort-label">Per page:</span>
+    <button class="page-btn {{ if eq .PerPage 5 }}active{{ end }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 5 }}"
+            hx-target="#{{ .TargetID }}"
+            hx-swap="innerHTML">5</button>
+    <button class="page-btn {{ if eq .PerPage 10 }}active{{ end }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 10 }}"
+            hx-target="#{{ .TargetID }}"
+            hx-swap="innerHTML">10</button>
+    <button class="page-btn {{ if eq .PerPage 15 }}active{{ end }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 15 }}"
+            hx-target="#{{ .TargetID }}"
+            hx-swap="innerHTML">15</button>
+  </div>
+</div>
+{{ end }}
+{{ end }}
+
+{{/* ── Pull Requests ─────────────────────────────────────────────────────── */}}
+{{ define "prlist" }}
+<div class="widget-header" style="margin-bottom:0">
+  <span class="widget-title">Pull Requests</span>
+  <span class="badge badge-green">{{ .Total }} open</span>
+</div>
+<div style="margin-bottom:12px"></div>
+{{ template "filterbar" . }}
+
+{{ if .Items }}
+<div class="gh-list">
+  {{ if .RepoGroups }}
+    {{ range .RepoGroups }}
+    <div class="repo-group">
+      <div class="repo-group-label">{{ .Repo }}</div>
+      {{ range .Items }}
+      <div class="gh-item">
+        <div class="gh-item-body">
+          <a href="{{ .URL }}" target="_blank" rel="noopener" class="gh-title">{{ .Title }}</a>
+          <div class="gh-meta">
+            <span>{{ ghNumber .Metadata }}</span>
+            <span class="gh-meta-sep">{{ ghUpdated .Metadata }}</span>
+            <span class="gh-badges">
+              <span class="gh-repo-label">{{ ghRepo .Metadata }}</span>
+              {{ range categories .Metadata }}
+              <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
+              {{ end }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {{ end }}
+    </div>
+    {{ end }}
+  {{ else }}
+    {{ range .Items }}
+    <div class="gh-item">
+      <div class="gh-item-body">
+        <a href="{{ .URL }}" target="_blank" rel="noopener" class="gh-title">{{ .Title }}</a>
+        <div class="gh-meta">
+          <span>{{ ghNumber .Metadata }}</span>
+          <span class="gh-meta-sep">{{ ghUpdated .Metadata }}</span>
+          <span class="gh-badges">
+            <span class="gh-repo-label">{{ ghRepo .Metadata }}</span>
+            {{ range categories .Metadata }}
+            <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
+            {{ end }}
+          </span>
+        </div>
+      </div>
+    </div>
+    {{ end }}
+  {{ end }}
+</div>
+{{ else }}
+<div class="empty">No pull requests match this filter</div>
+{{ end }}
+
+{{ template "pagination" . }}
+{{ end }}
+
+{{/* ── Issues ────────────────────────────────────────────────────────────── */}}
+{{ define "issuelist" }}
+<div class="widget-header" style="margin-bottom:0">
+  <span class="widget-title">Issues</span>
+  <span class="badge badge-green">{{ .Total }} open</span>
+</div>
+<div style="margin-bottom:12px"></div>
+{{ template "filterbar" . }}
+
+{{ if .Items }}
+<div class="gh-list">
+  {{ if .RepoGroups }}
+    {{ range .RepoGroups }}
+    <div class="repo-group">
+      <div class="repo-group-label">{{ .Repo }}</div>
+      {{ range .Items }}
+      <div class="gh-item">
+        <div class="gh-item-body">
+          <a href="{{ .URL }}" target="_blank" rel="noopener" class="gh-title">{{ .Title }}</a>
+          <div class="gh-meta">
+            <span>{{ ghNumber .Metadata }}</span>
+            <span class="gh-meta-sep">{{ ghUpdated .Metadata }}</span>
+            {{ if .Tags }}
+            <span class="gh-badges">
+              {{ range .Tags }}<span class="badge badge-gray">{{ . }}</span>{{ end }}
+            </span>
+            {{ end }}
+            <span class="gh-badges">
+              {{ range categories .Metadata }}
+              <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
+              {{ end }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {{ end }}
+    </div>
+    {{ end }}
+  {{ else }}
+  {{ range .Items }}
+  <div class="gh-item">
+    <div class="gh-item-body">
+      <a href="{{ .URL }}" target="_blank" rel="noopener" class="gh-title">{{ .Title }}</a>
+      <div class="gh-meta">
+        <span>{{ ghNumber .Metadata }}</span>
+        <span class="gh-meta-sep">{{ ghUpdated .Metadata }}</span>
+        <span class="gh-badges">
+          <span class="gh-repo-label">{{ ghRepo .Metadata }}</span>
+          {{ if .Tags }}{{ range .Tags }}<span class="badge badge-gray">{{ . }}</span>{{ end }}{{ end }}
+          {{ range categories .Metadata }}
+          <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
+          {{ end }}
+        </span>
+      </div>
+    </div>
+  </div>
+  {{ end }}
+  {{ end }}
+</div>
+{{ else }}
+<div class="empty">No issues match this filter</div>
+{{ end }}
+
+{{ template "pagination" . }}
+{{ end }}
+
+{{/* ── Notifications ─────────────────────────────────────────────────────── */}}
+{{ define "notifications" }}
+<div class="widget-header" style="margin-bottom:0">
+  <span class="widget-title">Notifications</span>
+  {{ if .Total }}<span class="badge badge-purple">{{ .Total }} unread</span>{{ end }}
+</div>
+<div style="margin-bottom:12px"></div>
+<div class="widget-header">
+  <div class="widget-controls">
+    <div class="filters">
+      {{ range .Filters }}
+      <button class="filter-btn {{ if .Active }}active{{ end }}"
+              hx-get="{{ pageURL $.Endpoint .Value "" 1 $.PerPage }}"
+              hx-target="#{{ $.TargetID }}"
+              hx-swap="innerHTML">
+        {{ .Label }} <span class="count">({{ .Count }})</span>
+      </button>
+      {{ end }}
+    </div>
+  </div>
+</div>
+
+{{ if .Items }}
+<div class="gh-list">
+  {{ range .Items }}
+  <div class="gh-item">
+    <div class="gh-item-body">
+      <a href="{{ .URL }}" target="_blank" rel="noopener" class="gh-title">{{ .Title }}</a>
+      <div class="gh-meta">
+        <span>{{ ghRepo .Metadata }}</span>
+        <span class="gh-meta-sep">{{ notifType .Metadata }}</span>
+        <span class="gh-meta-sep">{{ ghUpdated .Metadata }}</span>
+        <span class="gh-badges">
+          <span class="badge {{ notifReasonClass .Metadata }}">{{ notifReason .Metadata }}</span>
+        </span>
+      </div>
+    </div>
+    <button class="dismiss-btn"
+            hx-post="/htmx/notifications/{{ .ID }}/dismiss"
+            hx-target="#notifs-body"
+            hx-swap="innerHTML"
+            title="Mark as read">×</button>
+  </div>
+  {{ end }}
+</div>
+{{ else }}
+<div class="empty">No notifications</div>
+{{ end }}
+{{ template "pagination" . }}
+{{ end }}
+
+{{/* ── Releases ────────────────────────────────────────────────────────────── */}}
+{{ define "releases" }}
+<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+  <span style="font-size:0.75rem;font-weight:600;color:var(--text-2);white-space:nowrap">Releases</span>
+  {{ if . }}
+  <div class="release-list">
+    {{ range . }}
+    <div class="release-item">
+      <a href="{{ .URL }}" target="_blank" rel="noopener" class="release-name">{{ ghRepo .Metadata }}</a>
+      <span class="release-tag">{{ relTag .Metadata }}</span>
+      <span class="release-date">{{ relPublished .Metadata }}</span>
+      {{ if relPrerelease .Metadata }}<span class="badge badge-yellow" style="font-size:0.6rem;padding:1px 4px">pre</span>{{ end }}
+    </div>
+    {{ end }}
+  </div>
+  {{ else }}
+  <span style="font-size:0.8rem;color:var(--text-2)">No recent releases</span>
+  {{ end }}
+</div>
+{{ end }}

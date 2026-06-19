@@ -1,0 +1,17 @@
+# Binary
+dashboard
+/bin/
+
+# Data
+/data/
+
+# Config (contains secrets)
+config.yaml
+
+# Environment
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db

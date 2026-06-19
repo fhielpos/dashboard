@@ -1,0 +1,23 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "0.0.0.0:8080:8080"
+    volumes:
+      # Persist tasks and other plugin data.
+      - dashboard_data:/data
+      # Mount custom config (optional — override the bundled one).
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - DASHBOARD_NAME=${DASHBOARD_NAME:-there}
+      - CONFIG_PATH=/app/config.yaml
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  dashboard_data:

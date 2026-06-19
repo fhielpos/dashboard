@@ -1,0 +1,54 @@
+dashboard:
+  name: "${DASHBOARD_NAME}"
+  timezone: "America/Argentina/Buenos_Aires"
+
+server:
+  port: 8080
+
+scheduler:
+  refresh_interval: 5m
+
+plugins:
+  github:
+    enabled: true
+    token: "${GITHUB_TOKEN}"
+
+  calendar:
+    enabled: true
+    lookahead_days: 30
+    calendars:
+      - name: "GiantSwarm"
+        url: "https://calendar.google.com/calendar/ical/franco%40giantswarm.io/private-13615490873ee80b63b6efc8b9d3189c/basic.ics"
+        color: "#f97316"
+      - name: "Personal"
+        url: "https://calendar.google.com/calendar/ical/fhielpos%40gmail.com/private-75dbae38b59fe168e50336110a489d9d/basic.ics"
+        color: "#4285f4"
+
+  tasks:
+    enabled: true
+    storage_path: "/data/tasks.json"
+
+  notifications:
+    enabled: true
+    token: "${GITHUB_TOKEN}"
+    # all: false  # set to true to include read notifications
+
+  status:
+    enabled: true
+    services:
+      - name: "GitHub"
+        url: "https://www.githubstatus.com"
+      - name: "Claude / Anthropic"
+        url: "https://status.anthropic.com"
+      - name: "CircleCI"
+        url: "https://status.circleci.com"
+
+  releases:
+    enabled: true
+    token: "${GITHUB_TOKEN}"
+    lookahead_days: 30
+    repos:
+      - "kyverno/kyverno"
+      - "aquasecurity/trivy-operator"
+      - "kubescape/kubescape"
+      - "falcosecurity/falco"
