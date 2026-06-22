@@ -9,7 +9,7 @@ Runs on Go and Docker Compose.
 ```bash
 cp config.yaml.example config.yaml
 # Edit config.yaml with your settings
-GITHUB_TOKEN=$(echo $GH_TOKEN) DASHBOARD_NAME=Franco docker compose up --build
+DASHBOARD_NAME=Franco docker compose up --build
 ```
 
 Open [http://localhost:8080](http://localhost:8080).

@@ -9,7 +9,7 @@ services:
       # Mount custom config (optional — override the bundled one).
       - ./config.yaml:/app/config.yaml:ro
     environment:
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GH_TOKEN=${GH_TOKEN}
       - DASHBOARD_NAME=${DASHBOARD_NAME:-there}
       - CONFIG_PATH=/app/config.yaml
     restart: unless-stopped
