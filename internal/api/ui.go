@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -105,7 +106,16 @@ func newUIHandler(registry *core.Registry, name, tz, commit string) (*uiHandler,
 			loc = l
 		}
 	}
+	urlRe := regexp.MustCompile(`https?://[^\s<>"]+`)
+
 	funcMap := template.FuncMap{
+		"linkify": func(s string) template.HTML {
+			escaped := template.HTMLEscapeString(s)
+			linked := urlRe.ReplaceAllStringFunc(escaped, func(u string) string {
+				return `<a href="` + u + `" target="_blank" rel="noopener" class="task-link">` + u + `</a>`
+			})
+			return template.HTML(linked)
+		},
 		"formatDate": func(t time.Time) string { return t.Format("Monday, January 2, 2006") },
 		"formatTime": func(t *time.Time) string {
 			if t == nil {

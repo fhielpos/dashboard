@@ -281,6 +281,8 @@
     .p2 { background: var(--yellow); }
     .p3 { background: var(--red); }
     .task-title { font-size: 0.875rem; flex: 1; }
+    .task-link { color: var(--accent); text-decoration: none; }
+    .task-link:hover { text-decoration: underline; }
     .task-due { font-size: 0.68rem; color: var(--text-2); white-space: nowrap; font-family: var(--mono); }
     .task-due.overdue { color: var(--red); font-weight: 600; }
     .task-add {
@@ -722,7 +724,7 @@
       <button type="submit" class="complete-btn {{ if $done }}checked{{ end }}" title="{{ if $done }}Completed{{ else }}Mark complete{{ end }}">{{ if $done }}✓{{ end }}</button>
     </form>
     <div class="priority-dot p{{ .Priority }}"></div>
-    <span class="task-title {{ if $done }}struck{{ end }}">{{ .Title }}</span>
+    <span class="task-title {{ if $done }}struck{{ end }}">{{ linkify .Title }}</span>
     {{ if .DueAt }}
     <span class="task-due {{ if isOverdue .DueAt }}overdue{{ end }}">{{ formatDue .DueAt }}</span>
     {{ end }}
