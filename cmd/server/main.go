@@ -23,6 +23,9 @@ import (
 	tasksplugin    "github.com/franco/dashboard/plugins/tasks"
 )
 
+// Commit is injected at build time via -ldflags "-X main.Commit=<hash>".
+var Commit = "dev"
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("fatal", "error", err)
@@ -88,7 +91,7 @@ func run() error {
 	if name == "" {
 		name = "there"
 	}
-	srv, err := api.NewServer(cfg.Server.Port, registry, name, cfg.Dashboard.Timezone)
+	srv, err := api.NewServer(cfg.Server.Port, registry, name, cfg.Dashboard.Timezone, Commit)
 	if err != nil {
 		return fmt.Errorf("creating server: %w", err)
 	}

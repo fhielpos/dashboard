@@ -17,10 +17,10 @@ type Server struct {
 	httpSrv  *http.Server
 }
 
-func NewServer(port int, registry *core.Registry, name, tz string) (*Server, error) {
+func NewServer(port int, registry *core.Registry, name, tz, commit string) (*Server, error) {
 	s := &Server{registry: registry}
 
-	ui, err := newUIHandler(registry, name, tz)
+	ui, err := newUIHandler(registry, name, tz, commit)
 	if err != nil {
 		return nil, err
 	}

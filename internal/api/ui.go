@@ -27,6 +27,7 @@ const defaultPerPage = 10
 
 type pageData struct {
 	Name            string
+	Commit          string
 	Today           time.Time
 	CalEnabled      bool
 	Cal             calendarData
@@ -92,11 +93,12 @@ type filterOpt struct {
 type uiHandler struct {
 	registry *core.Registry
 	name     string
+	commit   string
 	loc      *time.Location
 	tmpl     *template.Template
 }
 
-func newUIHandler(registry *core.Registry, name, tz string) (*uiHandler, error) {
+func newUIHandler(registry *core.Registry, name, tz, commit string) (*uiHandler, error) {
 	loc := time.UTC
 	if tz != "" {
 		if l, err := time.LoadLocation(tz); err == nil {
@@ -296,7 +298,7 @@ func newUIHandler(registry *core.Registry, name, tz string) (*uiHandler, error) 
 	if err != nil {
 		return nil, fmt.Errorf("parsing templates: %w", err)
 	}
-	return &uiHandler{registry: registry, name: name, loc: loc, tmpl: tmpl}, nil
+	return &uiHandler{registry: registry, name: name, commit: commit, loc: loc, tmpl: tmpl}, nil
 }
 
 func (h *uiHandler) render(w http.ResponseWriter, name string, data any) {
@@ -315,6 +317,7 @@ func (h *uiHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().In(h.loc)
 	data := pageData{
 		Name:            h.name,
+		Commit:          h.commit,
 		Today:           now,
 		CalEnabled:      calEnabled,
 		Cal:             buildCalendarData("daily", all, now.Year(), int(now.Month()), h.loc),
