@@ -1,0 +1,67 @@
+# Dashboard configuration example.
+# Copy to config.yaml and fill in your values.
+# String values support $ENV_VAR substitution.
+
+dashboard:
+  name: Franco          # Shown in the "Hello, <name>" greeting
+  timezone: America/New_York  # IANA timezone for calendar and task due dates
+
+server:
+  port: 8080
+
+scheduler:
+  refresh_interval: 5m  # How often plugins poll for new data (e.g. 1m, 5m, 1h)
+
+plugins:
+
+  # ── GitHub pull requests and issues ─────────────────────────────────────────
+  github:
+    enabled: true
+    token: $GITHUB_TOKEN  # Personal access token with repo scope
+    exclude_authors:      # PRs from these GitHub logins are hidden
+      - dependabot[bot]
+      - renovate[bot]
+
+  # ── GitHub notifications ─────────────────────────────────────────────────────
+  notifications:
+    enabled: true
+    token: $GITHUB_TOKEN
+    all: false  # true = include already-read notifications
+
+  # ── GitHub releases ──────────────────────────────────────────────────────────
+  releases:
+    enabled: true
+    token: $GITHUB_TOKEN
+    lookahead_days: 30  # How many days back to look for releases
+    repos:
+      - owner/repo-one
+      - owner/repo-two
+
+  # ── Calendar (iCal/WebCal URLs) ──────────────────────────────────────────────
+  calendar:
+    enabled: true
+    lookahead_days: 30
+    timezone: America/New_York  # Timezone for floating-time events (no TZID)
+    calendars:
+      - name: Personal
+        url: https://calendar.google.com/calendar/ical/your-calendar-id/basic.ics
+        color: "#4285f4"  # Optional hex color for event display
+      - name: Work
+        url: https://calendar.google.com/calendar/ical/your-work-calendar-id/basic.ics
+        color: "#0f9d58"
+
+  # ── Tasks ────────────────────────────────────────────────────────────────────
+  tasks:
+    enabled: true
+    storage_path: /data/tasks.json  # Path inside the container (mapped via volume)
+
+  # ── Service status (Statuspage-compatible endpoints) ─────────────────────────
+  status:
+    enabled: true
+    services:
+      - name: GitHub
+        url: https://www.githubstatus.com
+      - name: Vercel
+        url: https://www.vercel-status.com
+      - name: AWS
+        url: https://health.aws.amazon.com
