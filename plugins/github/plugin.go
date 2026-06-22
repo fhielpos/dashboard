@@ -138,6 +138,9 @@ type ghIssue struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 	CreatedAt     time.Time `json:"created_at"`
 	PullRequest   *struct{} `json:"pull_request"`
+	User          struct {
+		Login string `json:"login"`
+	} `json:"user"`
 }
 
 type ghLabel struct{ Name string `json:"name"` }
@@ -203,6 +206,7 @@ func (p *Plugin) searchIssues(ctx context.Context, query string, typ core.ItemTy
 				"repository": repoName,
 				"updated_at": gh.UpdatedAt,
 				"created_at": gh.CreatedAt,
+				"author":     gh.User.Login,
 				"categories": []string{}, // filled by Fetch
 			},
 		})

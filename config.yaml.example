@@ -18,9 +18,6 @@ plugins:
   github:
     enabled: true
     token: $GITHUB_TOKEN  # Personal access token with repo scope
-    exclude_authors:      # PRs from these GitHub logins are hidden
-      - dependabot[bot]
-      - renovate[bot]
 
   # ── GitHub notifications ─────────────────────────────────────────────────────
   notifications:

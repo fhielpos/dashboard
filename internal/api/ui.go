@@ -6,8 +6,10 @@ import (
 	"html/template"
 	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -57,17 +59,20 @@ type calDay struct {
 }
 
 type listData struct {
-	Items        []core.Item
-	RepoGroups   []repoGroup // populated when ActiveSort == "repo"
-	Filters      []filterOpt
-	ActiveFilter string
-	ActiveSort   string
-	Page         int
-	TotalPages   int
-	Total        int
-	PerPage      int
-	Endpoint     string // e.g. /htmx/prs
-	TargetID     string // e.g. prs-body
+	Items          []core.Item
+	RepoGroups     []repoGroup // populated when ActiveSort == "repo"
+	Filters        []filterOpt
+	ActiveFilter   string
+	ActiveSort     string
+	Page           int
+	TotalPages     int
+	Total          int
+	PerPage        int
+	Endpoint       string   // e.g. /htmx/prs
+	TargetID       string   // e.g. prs-body
+	AllAuthors     []string // all unique PR authors (for the exclusion panel)
+	ExcludeAuthors []string // authors currently excluded via URL param
+	ExclSuffix     string   // "&excl=..." fragment carried through pagination/filter links
 }
 
 type repoGroup struct {
@@ -258,6 +263,33 @@ func newUIHandler(registry *core.Registry, name, tz string) (*uiHandler, error) 
 		"pageURL": func(endpoint, filter, sortBy string, page, pp int) string {
 			return fmt.Sprintf("%s?page=%d&filter=%s&sort=%s&pp=%d", endpoint, page, filter, sortBy, pp)
 		},
+		"contains": func(slice []string, item string) bool {
+			for _, s := range slice {
+				if strings.EqualFold(s, item) {
+					return true
+				}
+			}
+			return false
+		},
+		"exclToggleURL": func(endpoint, filter, sortBy string, page, pp int, excls []string, author string) string {
+			next := make([]string, 0, len(excls))
+			found := false
+			for _, a := range excls {
+				if strings.EqualFold(a, author) {
+					found = true
+				} else {
+					next = append(next, a)
+				}
+			}
+			if !found {
+				next = append(next, author)
+			}
+			u := fmt.Sprintf("%s?page=1&filter=%s&sort=%s&pp=%d", endpoint, filter, sortBy, pp)
+			for _, a := range next {
+				u += "&excl=" + url.QueryEscape(a)
+			}
+			return u
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/dashboard.html")
@@ -424,8 +456,52 @@ func (h *uiHandler) handlePRs(w http.ResponseWriter, r *http.Request) {
 	sortBy := q.Get("sort")
 	page := queryInt(q.Get("page"), 1)
 	pp := queryInt(q.Get("pp"), defaultPerPage)
-	all := itemsByType(h.registry.Items("", ""), core.ItemTypePR)
-	h.render(w, "prlist", buildListData(all, filter, sortBy, page, pp, "/htmx/prs", "prs-body", prFilters))
+	excluded := q["excl"] // multi-value: one per excluded author
+
+	allPRs := itemsByType(h.registry.Items("", ""), core.ItemTypePR)
+
+	// Collect all unique authors for the exclusion panel (before filtering).
+	authorSet := make(map[string]struct{})
+	for _, item := range allPRs {
+		if a, _ := item.Metadata["author"].(string); a != "" {
+			authorSet[a] = struct{}{}
+		}
+	}
+	allAuthors := make([]string, 0, len(authorSet))
+	for a := range authorSet {
+		allAuthors = append(allAuthors, a)
+	}
+	sort.Strings(allAuthors)
+
+	// Apply author exclusions.
+	prs := allPRs
+	if len(excluded) > 0 {
+		excSet := make(map[string]struct{}, len(excluded))
+		for _, a := range excluded {
+			excSet[strings.ToLower(a)] = struct{}{}
+		}
+		kept := make([]core.Item, 0, len(allPRs))
+		for _, item := range allPRs {
+			author, _ := item.Metadata["author"].(string)
+			if _, ex := excSet[strings.ToLower(author)]; !ex {
+				kept = append(kept, item)
+			}
+		}
+		prs = kept
+	}
+
+	// Build suffix to carry exclusions through pagination/filter links.
+	var sb strings.Builder
+	for _, a := range excluded {
+		sb.WriteString("&excl=")
+		sb.WriteString(url.QueryEscape(a))
+	}
+
+	data := buildListData(prs, filter, sortBy, page, pp, "/htmx/prs", "prs-body", prFilters)
+	data.AllAuthors = allAuthors
+	data.ExcludeAuthors = excluded
+	data.ExclSuffix = sb.String()
+	h.render(w, "prlist", data)
 }
 
 // ── Issues ────────────────────────────────────────────────────────────────────

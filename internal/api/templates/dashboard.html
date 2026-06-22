@@ -461,6 +461,53 @@
     /* ── HTMX ── */
     .htmx-request { opacity: 0.6; transition: opacity 0.2s; }
 
+
+    /* ── PR exclusion panel ── */
+    .exclusion-details { margin-bottom: 10px; }
+    .exclusion-summary {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.68rem; font-weight: 600; color: var(--text-2);
+      font-family: var(--mono); letter-spacing: 0.04em;
+      cursor: pointer; list-style: none; padding: 4px 0;
+      user-select: none;
+    }
+    .exclusion-summary::-webkit-details-marker { display: none; }
+    .exclusion-summary::before { content: "▶"; font-size: 0.55rem; transition: transform 0.15s; }
+    details[open] .exclusion-summary::before { transform: rotate(90deg); }
+    .exclusion-summary:hover { color: var(--text); }
+    .exclusion-body {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      padding: 8px 0 4px 14px;
+    }
+    .exclusion-label { font-size: 0.65rem; color: var(--text-2); font-family: var(--mono); }
+
+    /* ── PR author exclusion panel ── */
+    .exclusion-details { margin-bottom: 10px; }
+    .exclusion-summary {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.68rem; font-weight: 600; color: var(--text-2);
+      font-family: var(--mono); letter-spacing: 0.04em;
+      cursor: pointer; list-style: none; padding: 4px 0;
+      user-select: none;
+    }
+    .exclusion-summary::-webkit-details-marker { display: none; }
+    .exclusion-summary::before { content: "▶"; font-size: 0.55rem; transition: transform 0.15s; display: inline-block; }
+    details[open] .exclusion-summary::before { transform: rotate(90deg); }
+    .exclusion-summary:hover { color: var(--text); }
+    .exclusion-body { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 4px 14px; }
+    .excl-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 999px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-2); font-size: 0.7rem; font-weight: 500;
+      cursor: pointer; font-family: var(--mono); transition: all 0.1s;
+      white-space: nowrap;
+    }
+    .excl-btn:hover { border-color: var(--red); color: var(--red); }
+    .excl-btn.excluded { background: var(--red-light); color: var(--red); border-color: var(--red); text-decoration: line-through; }
+    .excl-btn.excluded:hover { background: var(--red); color: #fff; }
+    html.dark .excl-btn.excluded { background: var(--red-light); color: #fca5a5; border-color: #7f1d1d; }
+    html.dark .excl-btn.excluded:hover { background: #7f1d1d; color: #fff; }
     /* ── Responsive ── */
     @media (max-width: 640px) {
       body { padding: 20px 16px; }
@@ -712,7 +759,7 @@
     <div class="filters">
       {{ range .Filters }}
       <button class="filter-btn {{ if .Active }}active{{ end }}"
-              hx-get="{{ pageURL $.Endpoint .Value $.ActiveSort 1 $.PerPage }}"
+              hx-get="{{ pageURL $.Endpoint .Value $.ActiveSort 1 $.PerPage }}{{ $.ExclSuffix }}"
               hx-target="#{{ $.TargetID }}"
               hx-swap="innerHTML">
         {{ .Label }} <span class="count">({{ .Count }})</span>
@@ -724,15 +771,15 @@
     <span class="sort-label">Sort:</span>
     <div class="sort-toggle">
       <button class="sort-btn {{ if eq .ActiveSort "activity" }}active{{ end }}"
-              hx-get="{{ pageURL .Endpoint .ActiveFilter "activity" .Page .PerPage }}"
+              hx-get="{{ pageURL .Endpoint .ActiveFilter "activity" .Page .PerPage }}{{ .ExclSuffix }}"
               hx-target="#{{ .TargetID }}"
               hx-swap="innerHTML">Activity</button>
       <button class="sort-btn {{ if eq .ActiveSort "age" }}active{{ end }}"
-              hx-get="{{ pageURL .Endpoint .ActiveFilter "age" .Page .PerPage }}"
+              hx-get="{{ pageURL .Endpoint .ActiveFilter "age" .Page .PerPage }}{{ .ExclSuffix }}"
               hx-target="#{{ .TargetID }}"
               hx-swap="innerHTML">Age</button>
       <button class="sort-btn {{ if eq .ActiveSort "repo" }}active{{ end }}"
-              hx-get="{{ pageURL .Endpoint .ActiveFilter "repo" .Page .PerPage }}"
+              hx-get="{{ pageURL .Endpoint .ActiveFilter "repo" .Page .PerPage }}{{ .ExclSuffix }}"
               hx-target="#{{ .TargetID }}"
               hx-swap="innerHTML">Repo</button>
     </div>
@@ -749,18 +796,18 @@
   <div class="page-btns">
     <button class="page-btn"
             {{ if eq .Page 1 }}disabled{{ end }}
-            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort (sub .Page 1) .PerPage }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort (sub .Page 1) .PerPage }}{{ .ExclSuffix }}"
             hx-target="#{{ .TargetID }}"
             hx-swap="innerHTML">← Prev</button>
     {{ range seq .TotalPages }}
     <button class="page-btn {{ if eq . $.Page }}active{{ end }}"
-            hx-get="{{ pageURL $.Endpoint $.ActiveFilter $.ActiveSort . $.PerPage }}"
+            hx-get="{{ pageURL $.Endpoint $.ActiveFilter $.ActiveSort . $.PerPage }}{{ $.ExclSuffix }}"
             hx-target="#{{ $.TargetID }}"
             hx-swap="innerHTML">{{ . }}</button>
     {{ end }}
     <button class="page-btn"
             {{ if eq .Page .TotalPages }}disabled{{ end }}
-            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort (add .Page 1) .PerPage }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort (add .Page 1) .PerPage }}{{ .ExclSuffix }}"
             hx-target="#{{ .TargetID }}"
             hx-swap="innerHTML">Next →</button>
   </div>
@@ -768,15 +815,15 @@
   <div class="page-btns">
     <span class="sort-label">Per page:</span>
     <button class="page-btn {{ if eq .PerPage 5 }}active{{ end }}"
-            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 5 }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 5 }}{{ .ExclSuffix }}"
             hx-target="#{{ .TargetID }}"
             hx-swap="innerHTML">5</button>
     <button class="page-btn {{ if eq .PerPage 10 }}active{{ end }}"
-            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 10 }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 10 }}{{ .ExclSuffix }}"
             hx-target="#{{ .TargetID }}"
             hx-swap="innerHTML">10</button>
     <button class="page-btn {{ if eq .PerPage 15 }}active{{ end }}"
-            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 15 }}"
+            hx-get="{{ pageURL .Endpoint .ActiveFilter .ActiveSort 1 15 }}{{ .ExclSuffix }}"
             hx-target="#{{ .TargetID }}"
             hx-swap="innerHTML">15</button>
   </div>
@@ -790,6 +837,25 @@
   <span class="widget-title">Pull Requests</span>
   <span class="badge badge-green">{{ .Total }} open</span>
 </div>
+{{ if .AllAuthors }}
+<details class="exclusion-details">
+  <summary class="exclusion-summary">
+    Exclude authors
+    {{ if .ExcludeAuthors }}<span class="badge badge-red" style="font-size:0.6rem;padding:1px 6px">{{ len .ExcludeAuthors }} hidden</span>{{ end }}
+  </summary>
+  <div class="exclusion-body">
+    {{ range .AllAuthors }}
+    <button class="excl-btn {{ if contains $.ExcludeAuthors . }}excluded{{ end }}"
+            hx-get="{{ exclToggleURL $.Endpoint $.ActiveFilter $.ActiveSort 1 $.PerPage $.ExcludeAuthors . }}"
+            hx-target="#{{ $.TargetID }}"
+            hx-swap="innerHTML"
+            title="{{ if contains $.ExcludeAuthors . }}Click to show PRs from @{{ . }}{{ else }}Click to hide PRs from @{{ . }}{{ end }}">
+      @{{ . }}
+    </button>
+    {{ end }}
+  </div>
+</details>
+{{ end }}
 <div style="margin-bottom:12px"></div>
 {{ template "filterbar" . }}
 
