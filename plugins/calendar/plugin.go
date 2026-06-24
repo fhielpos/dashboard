@@ -3,6 +3,7 @@ package calendar
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -120,62 +121,78 @@ func (p *Plugin) fetchURL(ctx context.Context, src calendarSource) ([]core.Item,
 	}
 
 	dec := ical.NewDecoder(resp.Body)
-	cal, err := dec.Decode()
-	if err != nil {
-		return nil, fmt.Errorf("parsing iCal: %w", err)
-	}
-
 	now := time.Now()
 	cutoff := now.Add(p.lookahead)
 	var items []core.Item
 
-	for _, comp := range cal.Children {
-		if comp.Name != ical.CompEvent {
-			continue
+	// Loop over all VCALENDAR blocks — some providers send more than one per response.
+	for {
+		cal, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("parsing iCal: %w", err)
 		}
 
-		summary := propString(comp, ical.PropSummary)
-		description := propString(comp, ical.PropDescription)
-		uid := propString(comp, ical.PropUID)
-		location := propString(comp, ical.PropLocation)
+		for _, comp := range cal.Children {
+			if comp.Name != ical.CompEvent {
+				continue
+			}
 
-		start, err := propTime(comp, ical.PropDateTimeStart, p.loc)
-		if err != nil || start.IsZero() {
-			continue
-		}
+			summary := propString(comp, ical.PropSummary)
+			description := propString(comp, ical.PropDescription)
+			uid := propString(comp, ical.PropUID)
+			location := propString(comp, ical.PropLocation)
 
-		// Skip events in the past or too far in the future.
-		if start.Before(now.Add(-24*time.Hour)) || start.After(cutoff) {
-			continue
-		}
+			start, err := propTime(comp, ical.PropDateTimeStart, p.loc)
+			if err != nil || start.IsZero() {
+				continue
+			}
 
-		end, _ := propTime(comp, ical.PropDateTimeEnd, p.loc)
+			end, _ := propTime(comp, ical.PropDateTimeEnd, p.loc)
 
-		meta := map[string]interface{}{}
-		if location != "" {
-			meta["location"] = location
-		}
-		if src.color != "" {
-			meta["cal_color"] = src.color
-		}
-		if src.name != "" {
-			meta["cal_name"] = src.name
-		}
-		item := core.Item{
-			ID:          fmt.Sprintf("calendar:%s", uid),
-			Plugin:      p.Name(),
-			Type:        core.ItemTypeEvent,
-			Title:       summary,
-			Description: description,
-			StartAt:     &start,
-			FetchedAt:   now,
-			Metadata:    meta,
-		}
-		if !end.IsZero() {
-			item.DueAt = &end
-		}
+			// For window filtering, treat events with no end as lasting 1 day.
+			effectiveEnd := end
+			if effectiveEnd.IsZero() {
+				effectiveEnd = start.Add(24 * time.Hour)
+			}
 
-		items = append(items, item)
+			// Skip events that ended before our lookback window, or start after the cutoff.
+			// Using effectiveEnd (not start) so that multi-day events starting before the
+			// window are still included if they're still ongoing.
+			if effectiveEnd.Before(now.Add(-24*time.Hour)) || start.After(cutoff) {
+				continue
+			}
+
+			meta := map[string]interface{}{}
+			if location != "" {
+				meta["location"] = location
+			}
+			if src.color != "" {
+				meta["cal_color"] = src.color
+			}
+			if src.name != "" {
+				meta["cal_name"] = src.name
+			}
+			// Include start unix timestamp in the ID so recurring events (same UID,
+			// different occurrence) are treated as distinct entries.
+			item := core.Item{
+				ID:          fmt.Sprintf("calendar:%s:%d", uid, start.Unix()),
+				Plugin:      p.Name(),
+				Type:        core.ItemTypeEvent,
+				Title:       summary,
+				Description: description,
+				StartAt:     &start,
+				FetchedAt:   now,
+				Metadata:    meta,
+			}
+			if !end.IsZero() {
+				item.DueAt = &end
+			}
+
+			items = append(items, item)
+		}
 	}
 
 	return items, nil

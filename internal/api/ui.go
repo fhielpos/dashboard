@@ -823,7 +823,10 @@ func eventsForDay(events []core.Item, day time.Time, loc *time.Location) []core.
 		}
 		// Convert to the configured timezone before comparing the calendar day.
 		d := e.StartAt.In(loc)
-		if d.Year() == day.Year() && d.Month() == day.Month() && d.Day() == day.Day() {
+		startsOnDay := d.Year() == day.Year() && d.Month() == day.Month() && d.Day() == day.Day()
+		// Also match multi-day events that started before this day but are still ongoing.
+		spansIntoDay := d.Before(day) && e.DueAt != nil && e.DueAt.After(day)
+		if startsOnDay || spansIntoDay {
 			result = append(result, e)
 		}
 	}
