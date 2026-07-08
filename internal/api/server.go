@@ -51,6 +51,7 @@ func NewServer(port int, registry *core.Registry, name, tz, commit string) (*Ser
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/items", s.handleItems)
 		r.Get("/plugins", s.handlePlugins)
+		r.Get("/export", s.handleExport)
 
 		r.Route("/plugins/{plugin}", func(r chi.Router) {
 			r.Post("/refresh", s.handleRefresh)

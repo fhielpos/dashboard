@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/go-chi/chi/v5"
+	"gopkg.in/yaml.v3"
 
 	"github.com/franco/dashboard/internal/core"
 )
@@ -168,4 +169,39 @@ func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 
 	_ = s.registry.Refresh(r.Context(), name)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleExport returns all issues and PRs as YAML.
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	issues := s.registry.Items("", string(core.ItemTypeIssue))
+	prs := s.registry.Items("", string(core.ItemTypePR))
+
+	issueURLs := make([]string, 0, len(issues))
+	for _, item := range issues {
+		if item.URL != "" {
+			issueURLs = append(issueURLs, item.URL)
+		}
+	}
+
+	prURLs := make([]string, 0, len(prs))
+	for _, item := range prs {
+		if item.URL != "" {
+			prURLs = append(prURLs, item.URL)
+		}
+	}
+
+	payload := map[string][]string{
+		"issues":        issueURLs,
+		"pull-requests": prURLs,
+	}
+
+	out, err := yaml.Marshal(payload)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
 }
