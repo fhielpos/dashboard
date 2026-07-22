@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"gopkg.in/yaml.v3"
@@ -23,6 +24,31 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleAlerts returns browser-bound alerts newer than the "since" cursor,
+// along with the latest cursor so the client can advance it. It is polled by
+// the dashboard, which fires a browser Notification per returned alert.
+func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
+	type alertJSON struct {
+		Title string `json:"title"`
+		Body  string `json:"body"`
+		URL   string `json:"url"`
+	}
+
+	if s.alerts == nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"alerts": []alertJSON{}, "cursor": 0})
+		return
+	}
+
+	cursor, _ := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
+	list, next := s.alerts.Since(cursor)
+
+	out := make([]alertJSON, 0, len(list))
+	for _, a := range list {
+		out = append(out, alertJSON{Title: a.Headline(), Body: a.Title, URL: a.URL})
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"alerts": out, "cursor": next})
 }
 
 // handleItems returns all cached items with optional filtering.

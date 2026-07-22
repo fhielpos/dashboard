@@ -62,3 +62,28 @@ plugins:
         url: https://www.vercel-status.com
       - name: AWS
         url: https://health.aws.amazon.com
+
+# ── Push alerts for new GitHub events ──────────────────────────────────────────
+# Pushes a notification (browser and/or ntfy) when a NEW actionable GitHub event
+# appears. Only items appearing after startup alert — the existing backlog is
+# seeded silently, so restarts never flood you.
+alerts:
+  enabled: true
+  state_path: /data/alerts.json  # Seen-set persisted here (map via volume)
+  rules:
+    notifications: true    # new unread GitHub notifications
+    review_requests: true  # new PRs where your review is requested
+    assigned_issues: true  # new issues assigned to you
+  # Skip noisy sources. exclude_authors matches PR/issue authors (e.g. bots);
+  # notifications carry no author so use exclude_repos to mute a whole repo.
+  exclude_authors:
+    - dependabot[bot]
+    - renovate[bot]
+  exclude_repos: []
+  channels:
+    browser:
+      enabled: true   # native browser notifications while the dashboard tab is open
+    ntfy:
+      enabled: true
+      server: https://ntfy.sh  # or your self-hosted ntfy instance
+      topic: $NTFY_TOPIC       # subscribe to this topic in the ntfy app
