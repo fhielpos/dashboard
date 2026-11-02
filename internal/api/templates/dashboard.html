@@ -885,7 +885,7 @@
   <div class="exclusion-body">
     {{ range .AllAuthors }}
     <button class="excl-btn {{ if contains $.ExcludeAuthors . }}excluded{{ end }}"
-            hx-get="{{ exclToggleURL $.Endpoint $.ActiveFilter $.ActiveSort 1 $.PerPage $.ExcludeAuthors . }}"
+            hx-get="{{ exclToggleURL $.Endpoint $.ActiveFilter $.ActiveSort 1 $.PerPage $.ExcludeAuthors . }}&who={{ $.Who }}"
             hx-target="#{{ $.TargetID }}"
             hx-swap="innerHTML"
             title="{{ if contains $.ExcludeAuthors . }}Click to show PRs from @{{ . }}{{ else }}Click to hide PRs from @{{ . }}{{ end }}">
@@ -896,6 +896,18 @@
 </details>
 {{ end }}
 <div style="margin-bottom:12px"></div>
+{{ if .WhoOpts }}
+<div class="filters">
+  {{ range .WhoOpts }}
+  <button class="filter-btn {{ if .Active }}active{{ end }}"
+          hx-get="{{ pageURL $.Endpoint $.ActiveFilter $.ActiveSort 1 $.PerPage }}{{ $.ExclOnly }}&who={{ .Value }}"
+          hx-target="#{{ $.TargetID }}"
+          hx-swap="innerHTML">
+    {{ .Label }} <span class="count">({{ .Count }})</span>
+  </button>
+  {{ end }}
+</div>
+{{ end }}
 {{ template "filterbar" . }}
 
 {{ if .Items }}
@@ -913,6 +925,7 @@
             <span class="gh-meta-sep">{{ ghUpdated .Metadata }}</span>
             <span class="gh-badges">
               <span class="gh-repo-label">{{ ghRepo .Metadata }}</span>
+              {{ range stateBadges . }}<span class="badge {{ .Class }}">{{ .Label }}</span>{{ end }}
               {{ range categories .Metadata }}
               <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
               {{ end }}
@@ -933,7 +946,8 @@
           <span class="gh-meta-sep">{{ ghUpdated .Metadata }}</span>
           <span class="gh-badges">
             <span class="gh-repo-label">{{ ghRepo .Metadata }}</span>
-            {{ range categories .Metadata }}
+            {{ range stateBadges . }}<span class="badge {{ .Class }}">{{ .Label }}</span>{{ end }}
+              {{ range categories .Metadata }}
             <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
             {{ end }}
           </span>
@@ -978,6 +992,7 @@
             </span>
             {{ end }}
             <span class="gh-badges">
+              {{ range stateBadges . }}<span class="badge {{ .Class }}">{{ .Label }}</span>{{ end }}
               {{ range categories .Metadata }}
               <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
               {{ end }}
@@ -999,7 +1014,8 @@
         <span class="gh-badges">
           <span class="gh-repo-label">{{ ghRepo .Metadata }}</span>
           {{ if .Tags }}{{ range .Tags }}<span class="badge badge-gray">{{ . }}</span>{{ end }}{{ end }}
-          {{ range categories .Metadata }}
+          {{ range stateBadges . }}<span class="badge {{ .Class }}">{{ .Label }}</span>{{ end }}
+              {{ range categories .Metadata }}
           <span class="badge {{ catBadgeClass . }}">{{ catLabel . }}</span>
           {{ end }}
         </span>
