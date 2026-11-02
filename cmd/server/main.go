@@ -181,6 +181,7 @@ func buildAlerts(cfg config.AlertsConfig) (scheduler.Notifier, *alerts.Buffer) {
 		},
 		ExcludeAuthors: cfg.ExcludeAuthors,
 		ExcludeRepos:   cfg.ExcludeRepos,
+		ExcludeBots:    cfg.ExcludeBots,
 		CacheTTL:       cacheTTL,
 	}
 	notifier := alerts.New(acfg, channels, alerts.NewFileStore(statePath), slog.Default())

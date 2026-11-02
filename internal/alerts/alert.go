@@ -46,6 +46,8 @@ type Config struct {
 	Rules          Rules
 	ExcludeAuthors []string
 	ExcludeRepos   []string
+	// ExcludeBots skips items whose author the github plugin marked as a bot.
+	ExcludeBots bool
 	// CacheTTL is how long a dispatched item is remembered after it stops
 	// appearing in a snapshot, so a brief absence (e.g. paginated out, or
 	// GitHub's read flag flapping) doesn't make it look "new" again on

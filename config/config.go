@@ -27,6 +27,7 @@ type AlertsConfig struct {
 	Rules          AlertRules    `yaml:"rules"`
 	ExcludeAuthors []string      `yaml:"exclude_authors"`
 	ExcludeRepos   []string      `yaml:"exclude_repos"`
+	ExcludeBots    bool          `yaml:"exclude_bots"`
 	Channels       AlertChannels `yaml:"channels"`
 }
 

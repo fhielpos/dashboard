@@ -81,6 +81,7 @@ alerts:
     - dependabot[bot]
     - renovate[bot]
   exclude_repos: []
+  exclude_bots: true  # skip PRs/issues from bots (GitHub Apps, [bot] logins, github.bot_authors)
   channels:
     browser:
       enabled: true   # native browser notifications while the dashboard tab is open

@@ -150,6 +150,10 @@ func alertable(item core.Item, cfg Config) (Alert, bool) {
 		(repo != "" && slices.Contains(cfg.ExcludeRepos, repo)) {
 		return Alert{}, false
 	}
+	// is_bot is set by the github plugin (GitHub Apps, [bot] logins, bot_authors).
+	if cfg.ExcludeBots && item.Metadata["is_bot"] == true {
+		return Alert{}, false
+	}
 
 	reason := ""
 	switch item.Plugin {

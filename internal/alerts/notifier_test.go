@@ -46,6 +46,13 @@ func ghItem(id, title, repo, author string, categories ...string) core.Item {
 	}
 }
 
+// botItem is a review-requested PR whose author the github plugin marked as a bot.
+func botItem(id, author string) core.Item {
+	item := ghItem(id, "chore(deps): bump", "o/r", author, "review_requested")
+	item.Metadata["is_bot"] = true
+	return item
+}
+
 func allRules() Config {
 	return Config{Rules: Rules{Notifications: true, ReviewRequests: true, AssignedIssues: true}}
 }
@@ -98,6 +105,11 @@ func TestAlertable(t *testing.T) {
 			Config{Rules: allRules().Rules, ExcludeAuthors: []string{"dependabot[bot]"}}, false, ""},
 		{"excluded repo", ghItem("14", "Add feature", "o/noisy", "alice", "review_requested"),
 			Config{Rules: allRules().Rules, ExcludeRepos: []string{"o/noisy"}}, false, ""},
+		{"bot excluded when exclude_bots is on", botItem("15", "heraldbot[bot]"),
+			Config{Rules: allRules().Rules, ExcludeBots: true}, false, ""},
+		{"bot kept when exclude_bots is off", botItem("16", "heraldbot[bot]"), allRules(), true, "review_requested"},
+		{"person kept when exclude_bots is on", ghItem("17", "Add feature", "o/r", "alice", "review_requested"),
+			Config{Rules: allRules().Rules, ExcludeBots: true}, true, "review_requested"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

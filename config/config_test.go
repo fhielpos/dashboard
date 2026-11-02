@@ -17,6 +17,7 @@ alerts:
     review_requests: true
     assigned_issues: false
   exclude_authors: ["dependabot[bot]"]
+  exclude_bots: true
   channels:
     browser:
       enabled: true
@@ -48,6 +49,9 @@ alerts:
 	}
 	if len(a.ExcludeAuthors) != 1 || a.ExcludeAuthors[0] != "dependabot[bot]" {
 		t.Errorf("exclude_authors wrong: %+v", a.ExcludeAuthors)
+	}
+	if !a.ExcludeBots {
+		t.Errorf("exclude_bots not parsed")
 	}
 	if !a.Channels.Browser.Enabled {
 		t.Errorf("browser channel should be enabled")
