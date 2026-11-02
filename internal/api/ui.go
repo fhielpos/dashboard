@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,7 +75,69 @@ type listData struct {
 	TargetID       string   // e.g. prs-body
 	AllAuthors     []string // all unique PR authors (for the exclusion panel)
 	ExcludeAuthors []string // authors currently excluded via URL param
-	ExclSuffix     string   // "&excl=..." fragment carried through pagination/filter links
+	ExclSuffix     string   // "&excl=...&who=..." fragment carried through pagination/filter links
+	ExclOnly       string   // "&excl=..." fragment without who, for the who toggle links
+	Who            string   // active who filter (PRs only)
+	WhoOpts        []filterOpt
+}
+
+// whoFilters split PRs by who opened them; "ready" is green, mergeable, non-draft.
+var whoFilters = []string{"all", "people", "bots", "ready"}
+
+func matchesWho(item core.Item, who string) bool {
+	switch who {
+	case "people":
+		return item.Metadata["is_bot"] != true
+	case "bots":
+		return item.Metadata["is_bot"] == true
+	case "ready":
+		return item.Metadata["ci"] == "success" && item.Metadata["mergeable"] == "MERGEABLE" && item.Metadata["draft"] != true
+	}
+	return true
+}
+
+type stateBadge struct {
+	Class string
+	Label string
+}
+
+// staleAfter is how long an issue can sit without activity before it is flagged.
+const staleAfter = 30 * 24 * time.Hour
+
+// stateBadges describes an item's author kind and, for PRs, its CI, merge and
+// review state; for issues, whether it has gone stale.
+func stateBadges(item core.Item) []stateBadge {
+	var out []stateBadge
+	if item.Metadata["is_bot"] == true {
+		out = append(out, stateBadge{"badge-gray", "bot"})
+	}
+	if item.Type == core.ItemTypeIssue {
+		if t := metaTime(item.Metadata, "updated_at"); !t.IsZero() && time.Since(t) > staleAfter {
+			out = append(out, stateBadge{"badge-gray", "stale"})
+		}
+		return out
+	}
+	if item.Metadata["draft"] == true {
+		out = append(out, stateBadge{"badge-gray", "draft"})
+	}
+	switch item.Metadata["ci"] {
+	case "success":
+		out = append(out, stateBadge{"badge-green", "CI passing"})
+	case "failure", "error":
+		out = append(out, stateBadge{"badge-red", "CI failing"})
+	case "pending", "expected":
+		out = append(out, stateBadge{"badge-yellow", "CI running"})
+	}
+	if item.Metadata["mergeable"] == "CONFLICTING" {
+		out = append(out, stateBadge{"badge-red", "conflicts"})
+	}
+	switch item.Metadata["review_decision"] {
+	case "APPROVED":
+		out = append(out, stateBadge{"badge-green", "approved"})
+	case "CHANGES_REQUESTED":
+		out = append(out, stateBadge{"badge-red", "changes requested"})
+	}
+	return out
 }
 
 type repoGroup struct {
@@ -173,10 +236,15 @@ func newUIHandler(registry *core.Registry, name, tz, commit string) (*uiHandler,
 		"catLabel": func(cat string) string {
 			return categoryLabel(cat)
 		},
+		"stateBadges": stateBadges,
 		"catBadgeClass": func(cat string) string {
 			switch cat {
 			case "review_requested":
 				return "badge-yellow"
+			case "review_direct":
+				return "badge-red"
+			case "team_mentioned":
+				return "badge-purple"
 			case "approved_pending_merge":
 				return "badge-green"
 			case "mentioned":
@@ -503,6 +571,27 @@ func (h *uiHandler) handlePRs(w http.ResponseWriter, r *http.Request) {
 		prs = kept
 	}
 
+	// Split by who opened the PR. Counts are taken after author exclusions.
+	who := q.Get("who")
+	if !slices.Contains(whoFilters, who) {
+		who = "all"
+	}
+	whoOpts := make([]filterOpt, 0, len(whoFilters))
+	var whoKept []core.Item
+	for _, w := range whoFilters {
+		n := 0
+		for _, item := range prs {
+			if matchesWho(item, w) {
+				n++
+				if w == who {
+					whoKept = append(whoKept, item)
+				}
+			}
+		}
+		whoOpts = append(whoOpts, filterOpt{Value: w, Label: whoLabel(w), Count: n, Active: w == who})
+	}
+	prs = whoKept
+
 	// Build suffix to carry exclusions through pagination/filter links.
 	var sb strings.Builder
 	for _, a := range excluded {
@@ -513,7 +602,10 @@ func (h *uiHandler) handlePRs(w http.ResponseWriter, r *http.Request) {
 	data := buildListData(prs, filter, sortBy, page, pp, "/htmx/prs", "prs-body", prFilters)
 	data.AllAuthors = allAuthors
 	data.ExcludeAuthors = excluded
-	data.ExclSuffix = sb.String()
+	data.ExclOnly = sb.String()
+	data.ExclSuffix = sb.String() + "&who=" + who
+	data.Who = who
+	data.WhoOpts = whoOpts
 	h.render(w, "prlist", data)
 }
 
@@ -645,8 +737,8 @@ func (h *uiHandler) handleReleases(w http.ResponseWriter, r *http.Request) {
 
 // ── List data builder ─────────────────────────────────────────────────────────
 
-var prFilters = []string{"all", "review_requested", "approved_pending_merge", "mentioned", "authored"}
-var issueFilters = []string{"all", "assigned", "mentioned", "authored"}
+var prFilters = []string{"all", "review_direct", "review_requested", "approved_pending_merge", "mentioned", "team_mentioned", "authored"}
+var issueFilters = []string{"all", "assigned", "mentioned", "team_mentioned", "authored"}
 var notifFilterDefs = []string{"all", "mention", "assign", "comment", "state_change"}
 
 func buildListData(all []core.Item, filter, sortBy string, page, pp int, endpoint, targetID string, filterDefs []string) listData {
@@ -964,11 +1056,25 @@ func categoryLabel(cat string) string {
 		"mentioned":             "Mentioned",
 		"approved_pending_merge": "Approved",
 		"assigned":              "Assigned",
+		"review_direct":         "Review: me",
+		"team_mentioned":        "Team mentioned",
 	}
 	if l, ok := labels[cat]; ok {
 		return l
 	}
 	return cat
+}
+
+func whoLabel(who string) string {
+	switch who {
+	case "people":
+		return "People"
+	case "bots":
+		return "Bots"
+	case "ready":
+		return "Ready to merge"
+	}
+	return "Everyone"
 }
 
 func timeAgo(t time.Time) string {

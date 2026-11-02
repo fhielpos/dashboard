@@ -18,6 +18,11 @@ plugins:
   github:
     enabled: true
     token: $GITHUB_TOKEN  # Personal access token with repo scope
+    mention_window_days: 30  # Only show mentions updated in the last N days (0 = no limit)
+    team_mentions:           # Teams whose mentions you want to see (org/team-slug)
+      - my-org/my-team
+    bot_authors:             # Machine accounts GitHub reports as regular users
+      - my-machine-user
 
   # ── GitHub notifications ─────────────────────────────────────────────────────
   notifications:
