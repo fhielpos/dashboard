@@ -8,17 +8,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/franco/dashboard/internal/alerts"
 	"github.com/franco/dashboard/internal/core"
 )
 
 // Server holds the HTTP server and its dependencies.
 type Server struct {
 	registry *core.Registry
+	alerts   *alerts.Buffer
 	httpSrv  *http.Server
 }
 
-func NewServer(port int, registry *core.Registry, name, tz, commit string) (*Server, error) {
-	s := &Server{registry: registry}
+func NewServer(port int, registry *core.Registry, alertBuf *alerts.Buffer, name, tz, commit string) (*Server, error) {
+	s := &Server{registry: registry, alerts: alertBuf}
 
 	ui, err := newUIHandler(registry, name, tz, commit)
 	if err != nil {
@@ -52,6 +54,7 @@ func NewServer(port int, registry *core.Registry, name, tz, commit string) (*Ser
 		r.Get("/items", s.handleItems)
 		r.Get("/plugins", s.handlePlugins)
 		r.Get("/export", s.handleExport)
+		r.Get("/alerts", s.handleAlerts)
 
 		r.Route("/plugins/{plugin}", func(r chi.Router) {
 			r.Post("/refresh", s.handleRefresh)

@@ -13,6 +13,45 @@ type Config struct {
 	Scheduler SchedulerConfig         `yaml:"scheduler"`
 	Plugins   map[string]PluginConfig `yaml:"plugins"`
 	Dashboard DashboardConfig         `yaml:"dashboard"`
+	Alerts    AlertsConfig            `yaml:"alerts"`
+}
+
+// AlertsConfig configures push alerts for newly-appeared GitHub events.
+type AlertsConfig struct {
+	Enabled   bool   `yaml:"enabled"`
+	StatePath string `yaml:"state_path"`
+	// CacheTTL is how long a dispatched item is remembered after it drops out
+	// of a poll snapshot (e.g. "72h"). Defaults to alerts.DefaultCacheTTL
+	// when empty. Accepts any Go duration string.
+	CacheTTL       string        `yaml:"cache_ttl"`
+	Rules          AlertRules    `yaml:"rules"`
+	ExcludeAuthors []string      `yaml:"exclude_authors"`
+	ExcludeRepos   []string      `yaml:"exclude_repos"`
+	ExcludeBots    bool          `yaml:"exclude_bots"`
+	Channels       AlertChannels `yaml:"channels"`
+}
+
+// AlertRules toggles which kinds of items generate alerts.
+type AlertRules struct {
+	Notifications  bool `yaml:"notifications"`
+	ReviewRequests bool `yaml:"review_requests"`
+	AssignedIssues bool `yaml:"assigned_issues"`
+}
+
+// AlertChannels holds per-channel delivery settings.
+type AlertChannels struct {
+	Browser BrowserChannelConfig `yaml:"browser"`
+	Ntfy    NtfyChannelConfig    `yaml:"ntfy"`
+}
+
+type BrowserChannelConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type NtfyChannelConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Server  string `yaml:"server"`
+	Topic   string `yaml:"topic"`
 }
 
 type DashboardConfig struct {
