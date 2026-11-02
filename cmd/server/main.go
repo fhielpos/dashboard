@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/franco/dashboard/config"
+	"github.com/franco/dashboard/internal/alerts"
 	"github.com/franco/dashboard/internal/api"
 	"github.com/franco/dashboard/internal/core"
 	"github.com/franco/dashboard/internal/scheduler"
@@ -78,12 +79,15 @@ func run() error {
 		slog.Info("plugin registered", "name", name)
 	}
 
+	// Build push-alert notifier and browser buffer from config.
+	notifier, alertBuf := buildAlerts(cfg.Alerts)
+
 	// Start background refresh scheduler.
 	refreshInterval, err := time.ParseDuration(cfg.Scheduler.RefreshInterval)
 	if err != nil {
 		return fmt.Errorf("invalid scheduler.refresh_interval: %w", err)
 	}
-	sched := scheduler.New(registry, refreshInterval)
+	sched := scheduler.New(registry, refreshInterval, notifier)
 	sched.Start(ctx)
 
 	// Start HTTP server.
@@ -91,7 +95,7 @@ func run() error {
 	if name == "" {
 		name = "there"
 	}
-	srv, err := api.NewServer(cfg.Server.Port, registry, name, cfg.Dashboard.Timezone, Commit)
+	srv, err := api.NewServer(cfg.Server.Port, registry, alertBuf, name, cfg.Dashboard.Timezone, Commit)
 	if err != nil {
 		return fmt.Errorf("creating server: %w", err)
 	}
@@ -116,4 +120,71 @@ func run() error {
 
 	sched.Stop()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// buildAlerts constructs the push-alert notifier and the browser buffer from
+// config. It returns (nil, nil) when alerting is disabled or misconfigured,
+// logging a warning rather than failing startup. The browser buffer is shared
+// between the browser channel and the HTTP endpoint that the dashboard polls.
+func buildAlerts(cfg config.AlertsConfig) (scheduler.Notifier, *alerts.Buffer) {
+	if !cfg.Enabled {
+		return nil, nil
+	}
+
+	var (
+		channels []alerts.Channel
+		alertBuf *alerts.Buffer
+	)
+
+	if cfg.Channels.Browser.Enabled {
+		alertBuf = alerts.NewBuffer(50, 15*time.Minute)
+		channels = append(channels, alerts.NewBrowserChannel(alertBuf))
+	}
+
+	if cfg.Channels.Ntfy.Enabled {
+		server := cfg.Channels.Ntfy.Server
+		if server == "" {
+			server = "https://ntfy.sh"
+		}
+		if cfg.Channels.Ntfy.Topic == "" {
+			slog.Warn("alerts: ntfy enabled but no topic configured; skipping ntfy channel")
+		} else {
+			channels = append(channels, alerts.NewNtfyChannel(server, cfg.Channels.Ntfy.Topic))
+		}
+	}
+
+	if len(channels) == 0 {
+		slog.Warn("alerts: enabled but no usable channels; alerting disabled")
+		return nil, alertBuf
+	}
+
+	statePath := cfg.StatePath
+	if statePath == "" {
+		statePath = "/data/alerts.json"
+	}
+
+	var cacheTTL time.Duration
+	if cfg.CacheTTL != "" {
+		d, err := time.ParseDuration(cfg.CacheTTL)
+		if err != nil {
+			slog.Warn("alerts: invalid cache_ttl, using default", "value", cfg.CacheTTL, "default", alerts.DefaultCacheTTL, "error", err)
+		} else {
+			cacheTTL = d
+		}
+	}
+
+	acfg := alerts.Config{
+		Rules: alerts.Rules{
+			Notifications:  cfg.Rules.Notifications,
+			ReviewRequests: cfg.Rules.ReviewRequests,
+			AssignedIssues: cfg.Rules.AssignedIssues,
+		},
+		ExcludeAuthors: cfg.ExcludeAuthors,
+		ExcludeRepos:   cfg.ExcludeRepos,
+		ExcludeBots:    cfg.ExcludeBots,
+		CacheTTL:       cacheTTL,
+	}
+	notifier := alerts.New(acfg, channels, alerts.NewFileStore(statePath), slog.Default())
+	slog.Info("alerts enabled", "channels", len(channels))
+	return notifier, alertBuf
 }

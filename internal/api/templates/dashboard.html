@@ -541,6 +541,35 @@
         applyDark(on);
       }
       applyDark(localStorage.getItem('dark') === 'true');
+
+      // Browser push alerts for new GitHub events. Polls the backend (which
+      // detects new events on each 5m refresh) and fires a Notification per
+      // new alert. No-op when the browser alert channel is disabled server-side.
+      (function initAlerts() {
+        if (!('Notification' in window)) return;
+        const CURSOR_KEY = 'alertsCursor';
+        if (Notification.permission === 'default') Notification.requestPermission();
+
+        function poll(fire) {
+          const since = localStorage.getItem(CURSOR_KEY) || '0';
+          fetch('/api/alerts?since=' + encodeURIComponent(since))
+            .then(r => r.json())
+            .then(data => {
+              if (typeof data.cursor === 'number') localStorage.setItem(CURSOR_KEY, String(data.cursor));
+              if (fire && Notification.permission === 'granted') {
+                (data.alerts || []).forEach(a => {
+                  const n = new Notification(a.title, { body: a.body });
+                  if (a.url) n.onclick = () => window.open(a.url, '_blank');
+                });
+              }
+            })
+            .catch(() => {});
+        }
+
+        // Baseline on first load so opening a tab doesn't replay recent alerts.
+        if (localStorage.getItem(CURSOR_KEY) === null) poll(false);
+        setInterval(() => poll(true), 60000);
+      })();
     </script>
 
     {{ if .Statuses }}

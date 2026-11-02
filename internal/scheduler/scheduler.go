@@ -8,17 +8,25 @@ import (
 	"github.com/franco/dashboard/internal/core"
 )
 
+// Notifier is dispatched the fresh item snapshot after every refresh.
+type Notifier interface {
+	Process(ctx context.Context, items []core.Item) error
+}
+
 // Scheduler periodically refreshes all registered plugins.
 type Scheduler struct {
 	registry *core.Registry
 	interval time.Duration
+	notifier Notifier
 	stop     chan struct{}
 }
 
-func New(registry *core.Registry, interval time.Duration) *Scheduler {
+// New builds a Scheduler. notifier may be nil to disable alerting.
+func New(registry *core.Registry, interval time.Duration, notifier Notifier) *Scheduler {
 	return &Scheduler{
 		registry: registry,
 		interval: interval,
+		notifier: notifier,
 		stop:     make(chan struct{}),
 	}
 }
@@ -52,6 +60,12 @@ func (s *Scheduler) refresh(ctx context.Context) {
 	errs := s.registry.RefreshAll(ctx)
 	for name, err := range errs {
 		slog.Error("scheduler: plugin refresh failed", "plugin", name, "error", err)
+	}
+
+	if s.notifier != nil {
+		if err := s.notifier.Process(ctx, s.registry.Items("", "")); err != nil {
+			slog.Error("scheduler: alert processing failed", "error", err)
+		}
 	}
 }
 

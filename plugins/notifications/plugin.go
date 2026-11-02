@@ -79,8 +79,7 @@ func (p *Plugin) Fetch(ctx context.Context) ([]core.Item, error) {
 	now := time.Now()
 	items := make([]core.Item, 0, len(notifications))
 	for _, n := range notifications {
-		// Skip review_requested — already covered by the GitHub PR plugin.
-		if n.Reason == "review_requested" {
+		if skipReason(n.Reason) {
 			continue
 		}
 		htmlURL := apiURLToHTML(n.Subject.URL, n.Repository.HTMLURL)
@@ -101,6 +100,13 @@ func (p *Plugin) Fetch(ctx context.Context) ([]core.Item, error) {
 		})
 	}
 	return items, nil
+}
+
+// skipReason reports whether a notification reason is already covered by the
+// GitHub PR plugin's own review-requested/assigned categories, so surfacing
+// it here too would double-fire a notification for the same event.
+func skipReason(reason string) bool {
+	return reason == "review_requested" || reason == "assign"
 }
 
 func (p *Plugin) Shutdown(_ context.Context) error { return nil }
