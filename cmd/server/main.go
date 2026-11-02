@@ -163,6 +163,16 @@ func buildAlerts(cfg config.AlertsConfig) (scheduler.Notifier, *alerts.Buffer) {
 		statePath = "/data/alerts.json"
 	}
 
+	var cacheTTL time.Duration
+	if cfg.CacheTTL != "" {
+		d, err := time.ParseDuration(cfg.CacheTTL)
+		if err != nil {
+			slog.Warn("alerts: invalid cache_ttl, using default", "value", cfg.CacheTTL, "default", alerts.DefaultCacheTTL, "error", err)
+		} else {
+			cacheTTL = d
+		}
+	}
+
 	acfg := alerts.Config{
 		Rules: alerts.Rules{
 			Notifications:  cfg.Rules.Notifications,
@@ -171,6 +181,7 @@ func buildAlerts(cfg config.AlertsConfig) (scheduler.Notifier, *alerts.Buffer) {
 		},
 		ExcludeAuthors: cfg.ExcludeAuthors,
 		ExcludeRepos:   cfg.ExcludeRepos,
+		CacheTTL:       cacheTTL,
 	}
 	notifier := alerts.New(acfg, channels, alerts.NewFileStore(statePath), slog.Default())
 	slog.Info("alerts enabled", "channels", len(channels))

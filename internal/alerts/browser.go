@@ -45,6 +45,15 @@ func (b *Buffer) Since(cursor int64) ([]Alert, int64) {
 	defer b.mu.Unlock()
 	b.prune()
 
+	if cursor > b.seq {
+		// The server's sequence counter is behind the caller's cursor, which
+		// only happens after a restart (Buffer.seq resets to 0 in memory,
+		// but browsers persist their cursor in localStorage). Treat the
+		// caller as unseen so alerts buffered since the restart aren't
+		// silently skipped.
+		cursor = 0
+	}
+
 	out := make([]Alert, 0)
 	for _, it := range b.items {
 		if it.seq > cursor {

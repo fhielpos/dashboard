@@ -2,16 +2,20 @@
 // delivered through one or more channels (ntfy, browser).
 package alerts
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Alert is a single push-worthy event derived from a dashboard item.
 type Alert struct {
-	ID     string
-	Title  string
-	URL    string
-	Repo   string
-	Author string
-	Reason string
+	ID        string
+	Title     string
+	URL       string
+	Repo      string
+	Author    string
+	Reason    string
+	UpdatedAt time.Time
 }
 
 // Headline is a short human summary like "Review requested · o/r", used as the
@@ -42,4 +46,9 @@ type Config struct {
 	Rules          Rules
 	ExcludeAuthors []string
 	ExcludeRepos   []string
+	// CacheTTL is how long a dispatched item is remembered after it stops
+	// appearing in a snapshot, so a brief absence (e.g. paginated out, or
+	// GitHub's read flag flapping) doesn't make it look "new" again on
+	// reappearance. Defaults to DefaultCacheTTL when zero.
+	CacheTTL time.Duration
 }

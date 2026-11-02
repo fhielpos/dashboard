@@ -11,6 +11,7 @@ func TestLoad_AlertsSection(t *testing.T) {
 alerts:
   enabled: true
   state_path: "/data/alerts.json"
+  cache_ttl: "72h"
   rules:
     notifications: true
     review_requests: true
@@ -38,6 +39,9 @@ alerts:
 	a := cfg.Alerts
 	if !a.Enabled || a.StatePath != "/data/alerts.json" {
 		t.Errorf("basic fields wrong: %+v", a)
+	}
+	if a.CacheTTL != "72h" {
+		t.Errorf("cache_ttl wrong: %+v", a)
 	}
 	if !a.Rules.Notifications || !a.Rules.ReviewRequests || a.Rules.AssignedIssues {
 		t.Errorf("rules wrong: %+v", a.Rules)

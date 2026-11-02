@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/franco/dashboard/internal/core"
 )
@@ -14,6 +15,10 @@ func discardLog() *slog.Logger {
 }
 
 func notifItem(id, title, repo, reason string) core.Item {
+	return notifItemAt(id, title, repo, reason, time.Time{})
+}
+
+func notifItemAt(id, title, repo, reason string, updatedAt time.Time) core.Item {
 	return core.Item{
 		ID:     "notification:" + id,
 		Plugin: "notifications",
@@ -22,6 +27,7 @@ func notifItem(id, title, repo, reason string) core.Item {
 		Metadata: map[string]interface{}{
 			"reason":     reason,
 			"repository": repo,
+			"updated_at": updatedAt,
 		},
 	}
 }
@@ -47,20 +53,20 @@ func allRules() Config {
 // ── fakes ─────────────────────────────────────────────────────────────────────
 
 type fakeStore struct {
-	seen    map[string]bool
+	seen    map[string]SeenEntry
 	existed bool
-	saved   map[string]bool
+	saved   map[string]SeenEntry
 }
 
-func (f *fakeStore) Load() (map[string]bool, bool, error) {
-	out := make(map[string]bool, len(f.seen))
-	for k := range f.seen {
-		out[k] = true
+func (f *fakeStore) Load() (map[string]SeenEntry, bool, error) {
+	out := make(map[string]SeenEntry, len(f.seen))
+	for k, v := range f.seen {
+		out[k] = v
 	}
 	return out, f.existed, nil
 }
 
-func (f *fakeStore) Save(s map[string]bool) error {
+func (f *fakeStore) Save(s map[string]SeenEntry) error {
 	f.saved = s
 	return nil
 }
@@ -121,13 +127,13 @@ func TestProcess_ColdStartSeedsBaselineWithoutDispatch(t *testing.T) {
 	if len(ch.sent) != 0 {
 		t.Errorf("cold start dispatched %d alerts, want 0", len(ch.sent))
 	}
-	if !store.saved["notification:1"] {
+	if _, ok := store.saved["notification:1"]; !ok {
 		t.Errorf("cold start should seed baseline with present items, saved=%v", store.saved)
 	}
 }
 
 func TestProcess_DispatchesNewItems(t *testing.T) {
-	store := &fakeStore{existed: true, seen: map[string]bool{}}
+	store := &fakeStore{existed: true, seen: map[string]SeenEntry{}}
 	ch := &fakeChannel{}
 	n := New(allRules(), []Channel{ch}, store, discardLog())
 
@@ -142,13 +148,13 @@ func TestProcess_DispatchesNewItems(t *testing.T) {
 	if ch.sent[0].ID != "notification:1" {
 		t.Errorf("dispatched %q", ch.sent[0].ID)
 	}
-	if !store.saved["notification:1"] {
+	if _, ok := store.saved["notification:1"]; !ok {
 		t.Errorf("new item should be persisted as seen")
 	}
 }
 
-func TestProcess_SkipsAlreadySeen(t *testing.T) {
-	store := &fakeStore{existed: true, seen: map[string]bool{"notification:1": true}}
+func TestProcess_SkipsAlreadySeenUnchanged(t *testing.T) {
+	store := &fakeStore{existed: true, seen: map[string]SeenEntry{"notification:1": {LastSeenAt: time.Now()}}}
 	ch := &fakeChannel{}
 	n := New(allRules(), []Channel{ch}, store, discardLog())
 
@@ -158,12 +164,85 @@ func TestProcess_SkipsAlreadySeen(t *testing.T) {
 	}
 
 	if len(ch.sent) != 0 {
-		t.Errorf("already-seen item dispatched %d alerts, want 0", len(ch.sent))
+		t.Errorf("already-seen unchanged item dispatched %d alerts, want 0", len(ch.sent))
+	}
+}
+
+func TestProcess_ReDispatchesOnRealUpdate(t *testing.T) {
+	firstSeen := time.Now().Add(-time.Hour)
+	store := &fakeStore{existed: true, seen: map[string]SeenEntry{
+		"notification:1": {UpdatedAt: firstSeen, LastSeenAt: firstSeen},
+	}}
+	ch := &fakeChannel{}
+	n := New(allRules(), []Channel{ch}, store, discardLog())
+
+	// The thread got a new comment: same ID, newer updated_at.
+	items := []core.Item{notifItemAt("1", "Mentioned you", "o/r", "mention", time.Now())}
+	if err := n.Process(context.Background(), items); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ch.sent) != 1 || ch.sent[0].ID != "notification:1" {
+		t.Fatalf("expected a re-dispatch for the updated thread, got %+v", ch.sent)
+	}
+}
+
+func TestProcess_ReappearingUnchangedItemDoesNotReDispatch(t *testing.T) {
+	// Item was alerted, then briefly dropped out of the snapshot (e.g.
+	// paginated out or its read flag flapped), but its own updated_at never
+	// changed — this must not be treated as new on either poll.
+	store := &fakeStore{existed: true, seen: map[string]SeenEntry{}}
+	ch := &fakeChannel{}
+	n := New(allRules(), []Channel{ch}, store, discardLog())
+
+	updatedAt := time.Now()
+	item := notifItemAt("1", "Mentioned you", "o/r", "mention", updatedAt)
+
+	if err := n.Process(context.Background(), []core.Item{item}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ch.sent) != 1 {
+		t.Fatalf("first poll: dispatched %d alerts, want 1", len(ch.sent))
+	}
+
+	// Next poll: item absent (e.g. temporarily paginated out).
+	store.seen = store.saved
+	if err := n.Process(context.Background(), []core.Item{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reappears unchanged.
+	store.seen = store.saved
+	if err := n.Process(context.Background(), []core.Item{item}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ch.sent) != 1 {
+		t.Fatalf("reappearance dispatched %d alerts total, want still 1", len(ch.sent))
+	}
+}
+
+func TestProcess_ExpiresAbsentEntriesAfterTTL(t *testing.T) {
+	start := time.Now()
+	store := &fakeStore{existed: true, seen: map[string]SeenEntry{
+		"notification:1": {LastSeenAt: start},
+	}}
+	ch := &fakeChannel{}
+	cfg := allRules()
+	cfg.CacheTTL = time.Hour
+	n := New(cfg, []Channel{ch}, store, discardLog())
+	n.now = func() time.Time { return start.Add(2 * time.Hour) } // past the TTL
+
+	if err := n.Process(context.Background(), []core.Item{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := store.saved["notification:1"]; ok {
+		t.Errorf("entry absent past TTL should be expired, saved=%v", store.saved)
 	}
 }
 
 func TestProcess_AppliesExclusions(t *testing.T) {
-	store := &fakeStore{existed: true, seen: map[string]bool{}}
+	store := &fakeStore{existed: true, seen: map[string]SeenEntry{}}
 	ch := &fakeChannel{}
 	cfg := allRules()
 	cfg.ExcludeAuthors = []string{"dependabot[bot]"}
@@ -180,7 +259,7 @@ func TestProcess_AppliesExclusions(t *testing.T) {
 	if len(ch.sent) != 1 || ch.sent[0].ID != "github:11" {
 		t.Fatalf("expected only github:11 dispatched, got %+v", ch.sent)
 	}
-	if store.saved["github:10"] {
+	if _, ok := store.saved["github:10"]; ok {
 		t.Errorf("excluded item should not be recorded as seen")
 	}
 }

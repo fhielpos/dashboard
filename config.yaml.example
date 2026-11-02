@@ -70,6 +70,7 @@ plugins:
 alerts:
   enabled: true
   state_path: /data/alerts.json  # Seen-set persisted here (map via volume)
+  cache_ttl: 72h  # How long an absent item is remembered before it can re-alert as "new"
   rules:
     notifications: true    # new unread GitHub notifications
     review_requests: true  # new PRs where your review is requested

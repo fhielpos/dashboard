@@ -15,3 +15,7 @@ config.yaml
 # OS
 .DS_Store
 Thumbs.db
+
+# Agent skill config (local only, not for public repo)
+/CLAUDE.md
+/docs/agents/

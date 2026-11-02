@@ -18,8 +18,12 @@ type Config struct {
 
 // AlertsConfig configures push alerts for newly-appeared GitHub events.
 type AlertsConfig struct {
-	Enabled        bool          `yaml:"enabled"`
-	StatePath      string        `yaml:"state_path"`
+	Enabled   bool   `yaml:"enabled"`
+	StatePath string `yaml:"state_path"`
+	// CacheTTL is how long a dispatched item is remembered after it drops out
+	// of a poll snapshot (e.g. "72h"). Defaults to alerts.DefaultCacheTTL
+	// when empty. Accepts any Go duration string.
+	CacheTTL       string        `yaml:"cache_ttl"`
 	Rules          AlertRules    `yaml:"rules"`
 	ExcludeAuthors []string      `yaml:"exclude_authors"`
 	ExcludeRepos   []string      `yaml:"exclude_repos"`

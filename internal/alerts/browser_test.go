@@ -54,6 +54,23 @@ func TestBuffer_CapDropsOldest(t *testing.T) {
 	}
 }
 
+func TestBuffer_SinceRecoversFromServerRestart(t *testing.T) {
+	// Simulates a browser that persisted a cursor from before a restart: the
+	// in-memory Buffer.seq resets to 0, so the caller's old cursor is now
+	// ahead of the server's sequence counter.
+	b := NewBuffer(10, time.Hour)
+	b.Add(Alert{ID: "a"})
+	b.Add(Alert{ID: "b"})
+
+	got, cursor := b.Since(500)
+	if len(got) != 2 || got[0].ID != "a" || got[1].ID != "b" {
+		t.Fatalf("Since(500) after restart = %+v; want both buffered alerts returned", got)
+	}
+	if cursor != 2 {
+		t.Errorf("cursor = %d, want 2", cursor)
+	}
+}
+
 func TestBrowserChannel_SendAppendsToBuffer(t *testing.T) {
 	b := NewBuffer(10, time.Hour)
 	ch := NewBrowserChannel(b)

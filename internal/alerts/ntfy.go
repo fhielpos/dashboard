@@ -2,6 +2,7 @@ package alerts
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
@@ -33,7 +34,7 @@ func (c *NtfyChannel) Send(ctx context.Context, a Alert) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Title", a.Headline())
+	req.Header.Set("Title", encodeHeader(a.Headline()))
 	if a.URL != "" {
 		req.Header.Set("Click", a.URL)
 	}
@@ -48,6 +49,19 @@ func (c *NtfyChannel) Send(ctx context.Context, a Alert) error {
 		return fmt.Errorf("ntfy returned %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// encodeHeader returns s unchanged if it's pure ASCII, otherwise RFC 2047
+// encodes it (e.g. "=?UTF-8?B?...?="), which ntfy requires for header values
+// like Title that contain non-ASCII characters such as "·".
+// See https://docs.ntfy.sh/publish/#emojis-tags.
+func encodeHeader(s string) string {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return "=?UTF-8?B?" + base64.StdEncoding.EncodeToString([]byte(s)) + "?="
+		}
+	}
+	return s
 }
 
 func reasonText(reason string) string {
